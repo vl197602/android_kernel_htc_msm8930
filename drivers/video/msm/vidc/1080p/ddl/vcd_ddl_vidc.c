@@ -120,7 +120,7 @@ void ddl_vidc_channel_set(struct ddl_client_context *ddl)
 		ctxt_mem_offset = DDL_ADDR_OFFSET(ddl_context->dram_base_a,
 		ddl->codec_data.decoder.hw_bufs.context) >> 11;
 		hw_ctxt =
-			ddl->codec_data.decoder.hw_bufs.context.align_virtual_addr;
+		ddl->codec_data.decoder.hw_bufs.context.align_virtual_addr;
 		ctxt_mem_size =
 			ddl->codec_data.decoder.hw_bufs.context.buffer_size;
 		alloc_handle =
@@ -131,7 +131,7 @@ void ddl_vidc_channel_set(struct ddl_client_context *ddl)
 		ctxt_mem_offset = DDL_ADDR_OFFSET(ddl_context->dram_base_a,
 			ddl->codec_data.encoder.hw_bufs.context) >> 11;
 		hw_ctxt =
-			ddl->codec_data.encoder.hw_bufs.context.align_virtual_addr;
+		ddl->codec_data.encoder.hw_bufs.context.align_virtual_addr;
 		ctxt_mem_size =
 			ddl->codec_data.encoder.hw_bufs.context.buffer_size;
 		alloc_handle =
@@ -140,8 +140,8 @@ void ddl_vidc_channel_set(struct ddl_client_context *ddl)
 	if (!res_trk_check_for_sec_session() && hw_ctxt) {
 		memset(hw_ctxt, 0, ctxt_mem_size);
 		msm_ion_do_cache_op(ddl_context->video_ion_client,
-		alloc_handle, hw_ctxt, ctxt_mem_size,
-		ION_IOC_CLEAN_INV_CACHES);
+			alloc_handle, hw_ctxt, ctxt_mem_size,
+			ION_IOC_CLEAN_INV_CACHES);
 		arg1 = 1 << 29;
 	}
 	switch (*vcd_codec) {
