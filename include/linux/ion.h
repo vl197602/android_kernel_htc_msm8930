@@ -40,7 +40,6 @@ enum ion_heap_type {
 	ION_HEAP_TYPE_SYSTEM,
 	ION_HEAP_TYPE_SYSTEM_CONTIG,
 	ION_HEAP_TYPE_CARVEOUT,
-	ION_HEAP_TYPE_DMA,
 	ION_HEAP_TYPE_CUSTOM, /* must be last so device specific heaps always
 				 are at the end of this enum */
 	ION_NUM_HEAPS,
@@ -49,8 +48,6 @@ enum ion_heap_type {
 #define ION_HEAP_SYSTEM_MASK		(1 << ION_HEAP_TYPE_SYSTEM)
 #define ION_HEAP_SYSTEM_CONTIG_MASK	(1 << ION_HEAP_TYPE_SYSTEM_CONTIG)
 #define ION_HEAP_CARVEOUT_MASK		(1 << ION_HEAP_TYPE_CARVEOUT)
-
-#define ION_HEAP_TYPE_DMA_MASK         (1 << ION_HEAP_TYPE_DMA)
 
 /**
  * heap flags - the lower 16 bits are used by core ion, the upper 16
@@ -84,32 +81,19 @@ struct ion_platform_heap {
 	void *extra_data;
 };
 
-struct ion_cp_heap_pdata {
-	enum ion_permission_type permission_type;
-	unsigned int align;
-	ion_phys_addr_t secure_base; 
-	size_t secure_size; 
-	int reusable;
-	int mem_is_fmem;
-	enum ion_fixed_position fixed_position;
-	int iommu_map_all;
-	int iommu_2x_map_domain;
-	ion_virt_addr_t *virt_addr;
-	int (*request_region)(void *);
-	int (*release_region)(void *);
-	void *(*setup_region)(void);
-};
-
-struct ion_co_heap_pdata {
-	int adjacent_mem_id;
-	unsigned int align;
-	int mem_is_fmem;
-	enum ion_fixed_position fixed_position;
-	int (*request_region)(void *);
-	int (*release_region)(void *);
-	void *(*setup_region)(void);
-};
-
+/**
+ * struct ion_platform_data - array of platform heaps passed from board file
+ * @has_outer_cache:    set to 1 if outer cache is used, 0 otherwise.
+ * @nr:    number of structures in the array
+ * @request_region: function to be called when the number of allocations goes
+ *						from 0 -> 1
+ * @release_region: function to be called when the number of allocations goes
+ *						from 1 -> 0
+ * @setup_region:   function to be called upon ion registration
+ * @heaps: array of platform_heap structions
+ *
+ * Provided by the board file in the form of platform data to a platform device.
+ */
 struct ion_platform_data {
 	unsigned int has_outer_cache;
 	int nr;
@@ -165,6 +149,26 @@ int ion_handle_get_flags(struct ion_client *client, struct ion_handle *handle,
 				unsigned long *flags);
 
 
+/**
+ * ion_map_iommu - map the given handle into an iommu
+ *
+ * @client - client who allocated the handle
+ * @handle - handle to map
+ * @domain_num - domain number to map to
+ * @partition_num - partition number to allocate iova from
+ * @align - alignment for the iova
+ * @iova_length - length of iova to map. If the iova length is
+ *		greater than the handle length, the remaining
+ *		address space will be mapped to a dummy buffer.
+ * @iova - pointer to store the iova address
+ * @buffer_size - pointer to store the size of the buffer
+ * @flags - flags for options to map
+ * @iommu_flags - flags specific to the iommu.
+ *
+ * Maps the handle into the iova space specified via domain number. Iova
+ * will be allocated from the partition specified via partition_num.
+ * Returns 0 on success, negative value on error.
+ */
 int ion_map_iommu(struct ion_client *client, struct ion_handle *handle,
 			int domain_num, int partition_num, unsigned long align,
 			unsigned long iova_length, unsigned long *iova,
@@ -186,14 +190,20 @@ int ion_secure_heap(struct ion_device *dev, int heap_id, int version,
 int ion_unsecure_heap(struct ion_device *dev, int heap_id, int version,
 			void *data);
 
-int msm_ion_secure_heap(int heap_id);
-
-int msm_ion_unsecure_heap(int heap_id);
-
-int msm_ion_secure_heap_2_0(int heap_id, enum cp_mem_usage usage);
-
-int msm_ion_unsecure_heap_2_0(int heap_id, enum cp_mem_usage usage);
-
+/**
+ * msm_ion_do_cache_op - do cache operations.
+ *
+ * @client - pointer to ION client.
+ * @handle - pointer to buffer handle.
+ * @vaddr -  virtual address to operate on.
+ * @len - Length of data to do cache operation on.
+ * @cmd - Cache operation to perform:
+ *		ION_IOC_CLEAN_CACHES
+ *		ION_IOC_INV_CACHES
+ *		ION_IOC_CLEAN_INV_CACHES
+ *
+ * Returns 0 on success
+ */
 int msm_ion_do_cache_op(struct ion_client *client, struct ion_handle *handle,
 			void *vaddr, unsigned long len, unsigned int cmd);
 
@@ -345,19 +355,6 @@ struct ion_custom_data {
 	unsigned int cmd;
 	unsigned long arg;
 };
-
-struct ion_flush_data {
-        struct ion_handle *handle;
-        int fd;
-        void *vaddr;
-        unsigned int offset;
-        unsigned int length;
-};
-struct ion_flag_data {
-        struct ion_handle *handle;
-        unsigned long flags;
-};
-
 #define ION_IOC_MAGIC		'I'
 
 #define ION_IOC_ALLOC		_IOWR(ION_IOC_MAGIC, 0, \
@@ -404,4 +401,4 @@ struct ion_flag_data {
 #define ION_IOC_GET_FLAGS_COMPAT               _IOWR(ION_IOC_MAGIC, 10, \
                                                 struct ion_flag_data)
 
-#endif 
+#endif /* _LINUX_ION_H */
