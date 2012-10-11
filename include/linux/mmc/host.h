@@ -107,6 +107,8 @@ struct mmc_host_ops {
 	void	(*enable_preset_value)(struct mmc_host *host, bool enable);
 	int	(*select_drive_strength)(unsigned int max_dtr, int host_drv, int card_drv);
 	void	(*hw_reset)(struct mmc_host *host);
+	unsigned long (*get_max_frequency)(struct mmc_host *host);
+	unsigned long (*get_min_frequency)(struct mmc_host *host);
 };
 
 struct mmc_card;
@@ -220,22 +222,21 @@ struct mmc_host {
 #define MMC_CAP2_PACKED_RD	(1 << 10)	
 #define MMC_CAP2_PACKED_WR	(1 << 11)	
 #define MMC_CAP2_PACKED_CMD	(MMC_CAP2_PACKED_RD | \
-				 MMC_CAP2_PACKED_WR) 
-#define MMC_CAP2_PACKED_WR_CONTROL (1 << 12) 
-#define MMC_CAP2_SANITIZE	(1 << 13)		
-#define MMC_CAP2_BKOPS		    (1 << 14)	
-#define MMC_CAP2_INIT_BKOPS	    (1 << 15)	
-#define MMC_CAP2_POWER_OFF_VCCQ_DURING_SUSPEND	(1 << 16)
+				 MMC_CAP2_PACKED_WR) /* Allow packed commands */
+#define MMC_CAP2_PACKED_WR_CONTROL (1 << 12) /* Allow write packing control */
 
-	mmc_pm_flag_t		pm_caps;	
+#define MMC_CAP2_SANITIZE	(1 << 13)		/* Support Sanitize */
+#define MMC_CAP2_INIT_BKOPS	    (1 << 15)	/* Need to set BKOPS_EN */
+#define MMC_CAP2_CLK_SCALE	(1 << 16)	/* Allow dynamic clk scaling */
+	mmc_pm_flag_t		pm_caps;	/* supported pm features */
 
-	int			clk_requests;	
-	unsigned int		clk_delay;	
-	bool			clk_gated;	
-	struct delayed_work	clk_gate_work; 
-	unsigned int		clk_old;	
-	spinlock_t		clk_lock;	
-	struct mutex		clk_gate_mutex;	
+	int			clk_requests;	/* internal reference counter */
+	unsigned int		clk_delay;	/* number of MCI clk hold cycles */
+	bool			clk_gated;	/* clock gated */
+	struct delayed_work	clk_gate_work; /* delayed clock gate */
+	unsigned int		clk_old;	/* old clock value cache */
+	spinlock_t		clk_lock;	/* lock for clk fields */
+	struct mutex		clk_gate_mutex;	/* mutex for clock gating */
 	struct device_attribute clkgate_delay_attr;
 	unsigned long           clkgate_delay;
 
@@ -338,6 +339,19 @@ struct mmc_host {
 	ktime_t rq_start;
 
 	struct mmc_ios saved_ios;
+	struct {
+		unsigned long	busy_time_us;
+		unsigned long	window_time;
+		unsigned long	curr_freq;
+		unsigned long	polling_delay_ms;
+		unsigned int	up_threshold;
+		unsigned int	down_threshold;
+		ktime_t		start_busy;
+		bool		enable;
+		bool		initialized;
+		bool		in_progress;
+		struct delayed_work work;
+	} clk_scaling;
 	unsigned long		private[0] ____cacheline_aligned;
 };
 
