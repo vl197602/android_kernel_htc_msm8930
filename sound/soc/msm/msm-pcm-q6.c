@@ -109,9 +109,9 @@ static void msm_pcm_route_event_handler(enum msm_pcm_routing_event event,
 
 	BUG_ON(!prtd);
 
-	pr_info("%s: event %x\n", __func__, event);
+	pr_debug("%s: event %x\n", __func__, event);
 
-	switch(event) {
+	switch (event) {
 	case MSM_PCM_RT_EVT_BUF_RECFG:
 		q6asm_cmd(prtd->audio_client, CMD_PAUSE);
 		q6asm_cmd(prtd->audio_client, CMD_FLUSH);
@@ -168,7 +168,7 @@ static void event_handler(uint32_t opcode,
 		in_frame_info[token][0] = payload[2];
 		in_frame_info[token][1] = payload[3];
 
-		
+		/* assume data size = 0 during flushing */
 		if (in_frame_info[token][0]) {
 			prtd->pcm_irq_pos += in_frame_info[token][0];
 			pr_debug("pcm_irq_pos=%d\n", prtd->pcm_irq_pos);
@@ -187,7 +187,7 @@ static void event_handler(uint32_t opcode,
 				 __func__, atomic_read(&prtd->in_count));
 			atomic_inc(&prtd->in_count);
 			if (atomic_read(&prtd->in_count) == prtd->periods) {
-				pr_info("%s: reclaimed all buffers\n", __func__);
+				pr_info("%s: reclaimed all bufs\n", __func__);
 				if (atomic_read(&prtd->start))
 					snd_pcm_period_elapsed(substream);
 				wake_up(&the_locks.read_wait);
@@ -660,7 +660,6 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 	struct audio_buffer *buf;
 	int dir, ret;
 	int format = FORMAT_LINEAR_PCM;
-	short bit_width = 16;
 	struct msm_pcm_routing_evt event;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
@@ -708,8 +707,9 @@ static int msm_pcm_hw_params(struct snd_pcm_substream *substream,
 			prtd->audio_client->session);
 		prtd->session_id = prtd->audio_client->session;
 		event.event_func = msm_pcm_route_event_handler;
-		event.priv_data = (void*) prtd;
+		event.priv_data = (void *) prtd;
 		msm_pcm_routing_reg_phy_stream_v2(soc_prtd->dai_link->be_id,
+						  prtd->audio_client->perf_mode,
 						  prtd->session_id,
 						  substream->stream, event);
 	}

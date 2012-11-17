@@ -1287,6 +1287,27 @@ fail_cmd:
 	return -EINVAL;
 }
 
+int q6asm_open_read_v2_1(struct audio_client *ac,
+		uint32_t format)
+{
+	int rc = 0x00;
+	struct asm_stream_cmd_open_read_v2_1 open;
+#ifdef CONFIG_DEBUG_FS
+	in_cont_index = 0;
+#endif
+	if ((ac == NULL) || (ac->apr == NULL)) {
+		pr_err("%s: APR handle NULL\n", __func__);
+		return -EINVAL;
+	}
+	pr_debug("%s:session[%d]", __func__, ac->session);
+
+	ac->io_mode |= TUN_READ_IO_MODE;
+
+	return 0;
+fail_cmd:
+	return -EINVAL;
+}
+
 int q6asm_open_read_compressed(struct audio_client *ac, uint32_t format)
 {
 	int rc = 0x00;
@@ -1583,6 +1604,9 @@ int q6asm_open_write_v2(struct audio_client *ac, uint32_t format,
 		pr_err("%s: format = %x not supported\n", __func__, format);
 		goto fail_cmd;
 	}
+
+	ac->io_mode |= TUN_WRITE_IO_MODE;
+
 	return 0;
 fail_cmd:
 	return -EINVAL;
@@ -3502,7 +3526,7 @@ int q6asm_read_nolock(struct audio_client *ac)
 		read.hdr.token = port->dsp_buf;
 
 		port->dsp_buf = (port->dsp_buf + 1) & (port->max_buf_cnt - 1);
-		pr_debug("%s:buf add[0x%x] token[%d] uid[%d]\n", __func__,
+		pr_info("%s:buf add[0x%x] token[%d] uid[%d]\n", __func__,
 					read.buf_add,
 					read.hdr.token,
 					read.uid);
