@@ -29,6 +29,7 @@
 #include <linux/mfd/pm8xxx/pm8xxx-adc.h>
 #include <linux/msm_adc.h>
 
+/* Register TEMP_ALARM_CTRL bits */
 #define TEMP_ALARM_CTRL_ST3_SD		0x80
 #define TEMP_ALARM_CTRL_ST2_SD		0x40
 #define TEMP_ALARM_CTRL_STATUS_MASK	0x30
@@ -39,12 +40,13 @@
 #define TEMP_ALARM_CTRL_OVRD_ST2	0x01
 #define TEMP_ALARM_CTRL_OVRD_MASK	0x03
 
-#define TEMP_STAGE_STEP			20000	
+#define TEMP_STAGE_STEP			20000	/* Stage step: 20.000 C */
 #define TEMP_STAGE_HYSTERESIS		2000
 
-#define TEMP_THRESH_MIN			105000	
-#define TEMP_THRESH_STEP		5000	
+#define TEMP_THRESH_MIN			105000	/* Threshold Min: 105 C */
+#define TEMP_THRESH_STEP		5000	/* Threshold step: 5 C */
 
+/* Register TEMP_ALARM_PWM bits */
 #define TEMP_ALARM_PWM_EN_MASK		0xC0
 #define TEMP_ALARM_PWM_EN_NEVER		0x00
 #define TEMP_ALARM_PWM_EN_SLEEP_B	0x40
@@ -55,6 +57,7 @@
 #define TEMP_ALARM_PWM_PER_DIV_MASK	0x07
 #define TEMP_ALARM_PWM_PER_DIV_SHIFT	0
 
+/* Trips: from critical to less critical */
 #define TRIP_STAGE3			0
 #define TRIP_STAGE2			1
 #define TRIP_STAGE1			2
@@ -503,6 +506,15 @@ static int pm8xxx_tm_init_reg(struct pm8xxx_tm_chip *chip)
 	if (rc < 0)
 		return rc;
 
+	/*
+	 * Set the PMIC temperature alarm module to be always on.  This ensures
+	 * that die temperature monitoring is active even if CXO is disabled
+	 * (i.e. when sleep_b is low).  This is necessary since CXO can be
+	 * disabled while the system is still heavily loaded.  Also, using
+	 * the alway-on instead of PWM-enabled configurations ensures that the
+	 * die temperature can be measured by the PMIC ADC without reconfiguring
+	 * the temperature alarm module first.
+	 */
 	rc = pm8xxx_tm_write_pwm(chip, TEMP_ALARM_PWM_EN_ALWAYS);
 
 	return rc;
