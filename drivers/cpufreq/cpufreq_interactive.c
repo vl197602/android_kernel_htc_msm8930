@@ -294,11 +294,18 @@ static void cpufreq_interactive_timer(unsigned long data)
 	loadadjfreq = (unsigned int)cputime_speedadj * 100;
 	cpu_load = loadadjfreq / pcpu->target_freq;
 
-	if ((cpu_load >= go_hispeed_load || boost_val) &&
-	    pcpu->target_freq < hispeed_freq)
-		new_freq = hispeed_freq;
-	else
+	if (cpu_load >= go_hispeed_load || boosted) {
+		if (pcpu->target_freq < hispeed_freq) {
+			new_freq = hispeed_freq;
+		} else {
+			new_freq = choose_freq(pcpu, loadadjfreq);
+
+			if (new_freq < hispeed_freq)
+				new_freq = hispeed_freq;
+		}
+	} else {
 		new_freq = choose_freq(pcpu, loadadjfreq);
+	}
 
 	if (pcpu->target_freq >= hispeed_freq &&
 	    new_freq > pcpu->target_freq &&
