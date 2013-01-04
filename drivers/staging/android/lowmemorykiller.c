@@ -94,38 +94,138 @@ static int test_task_flag(struct task_struct *p, int flag)
 	return 0;
 }
 
-static int
-task_fork_notify_func(struct notifier_block *self, unsigned long val, void *data);
-
-static struct notifier_block task_fork_nb = {
-	.notifier_call = task_fork_notify_func,
-};
-
-static int
-task_fork_notify_func(struct notifier_block *self, unsigned long val, void *data)
+int can_use_cma_pages(gfp_t gfp_mask)
 {
-	lowmem_fork_boost_timeout = jiffies + (HZ << 1);
+	int can_use = 0;
+	int mtype = allocflags_to_migratetype(gfp_mask);
+	int i = 0;
+	int *mtype_fallbacks = get_migratetype_fallbacks(mtype);
 
-	return NOTIFY_OK;
+	if (is_migrate_cma(mtype)) {
+		can_use = 1;
+	} else {
+		for (i = 0;; i++) {
+			int fallbacktype = mtype_fallbacks[i];
+
+			if (is_migrate_cma(fallbacktype)) {
+				can_use = 1;
+				break;
+			}
+
+			if (fallbacktype == MIGRATE_RESERVE)
+				break;
+		}
+	}
+	return can_use;
+}
+
+
+void tune_lmk_zone_param(struct zonelist *zonelist, int classzone_idx,
+					int *other_free, int *other_file,
+					int use_cma_pages)
+{
+	struct zone *zone;
+	struct zoneref *zoneref;
+	int zone_idx;
+
+	for_each_zone_zonelist(zone, zoneref, zonelist, MAX_NR_ZONES) {
+		if ((zone_idx = zonelist_zone_idx(zoneref)) == ZONE_MOVABLE) {
+			if (!use_cma_pages)
+				*other_free -=
+				    zone_page_state(zone, NR_FREE_CMA_PAGES);
+			continue;
+		}
+
+		if (zone_idx > classzone_idx) {
+			if (other_free != NULL)
+				*other_free -= zone_page_state(zone,
+							       NR_FREE_PAGES);
+			if (other_file != NULL)
+				*other_file -= zone_page_state(zone,
+							       NR_FILE_PAGES)
+					      - zone_page_state(zone, NR_SHMEM);
+		} else if (zone_idx < classzone_idx) {
+			if (zone_watermark_ok(zone, 0, 0, classzone_idx, 0)) {
+				if (!use_cma_pages) {
+					*other_free -= min(
+					  zone->lowmem_reserve[classzone_idx] +
+					  zone_page_state(
+					    zone, NR_FREE_CMA_PAGES),
+					  zone_page_state(
+					    zone, NR_FREE_PAGES));
+				} else {
+					*other_free -=
+					  zone->lowmem_reserve[classzone_idx];
+				}
+			} else {
+				*other_free -=
+					   zone_page_state(zone, NR_FREE_PAGES);
+			}
+		}
+	}
 }
 
 static void dump_tasks(void)
 {
-	struct task_struct *p;
-	struct task_struct *task;
+	gfp_t gfp_mask;
+	struct zone *preferred_zone;
+	struct zonelist *zonelist;
+	enum zone_type high_zoneidx, classzone_idx;
+	unsigned long balance_gap;
+	int use_cma_pages;
 
-	pr_info("[ pid ]   uid  total_vm      rss cpu oom_adj  name\n");
-	for_each_process(p) {
-		task = find_lock_task_mm(p);
-		if (!task) {
-			continue;
+	gfp_mask = sc->gfp_mask;
+	zonelist = node_zonelist(0, gfp_mask);
+	high_zoneidx = gfp_zone(gfp_mask);
+	first_zones_zonelist(zonelist, high_zoneidx, NULL, &preferred_zone);
+	classzone_idx = zone_idx(preferred_zone);
+	use_cma_pages = can_use_cma_pages(gfp_mask);
+
+	balance_gap = min(low_wmark_pages(preferred_zone),
+			  (preferred_zone->present_pages +
+			   KSWAPD_ZONE_BALANCE_GAP_RATIO-1) /
+			   KSWAPD_ZONE_BALANCE_GAP_RATIO);
+
+	if (likely(current_is_kswapd() && zone_watermark_ok(preferred_zone, 0,
+			  high_wmark_pages(preferred_zone) + SWAP_CLUSTER_MAX +
+			  balance_gap, 0, 0))) {
+		if (lmk_fast_run)
+			tune_lmk_zone_param(zonelist, classzone_idx, other_free,
+				       other_file, use_cma_pages);
+		else
+			tune_lmk_zone_param(zonelist, classzone_idx, other_free,
+				       NULL, use_cma_pages);
+
+		if (zone_watermark_ok(preferred_zone, 0, 0, ZONE_HIGHMEM, 0)) {
+			if (!use_cma_pages) {
+				*other_free -= min(
+				  preferred_zone->lowmem_reserve[ZONE_HIGHMEM]
+				  + zone_page_state(
+				    preferred_zone, NR_FREE_CMA_PAGES),
+				  zone_page_state(
+				    preferred_zone, NR_FREE_PAGES));
+			} else {
+				*other_free -=
+				  preferred_zone->lowmem_reserve[ZONE_HIGHMEM];
+			}
+		} else {
+			*other_free -= zone_page_state(preferred_zone,
+						      NR_FREE_PAGES);
 		}
 
-		pr_info("[%5d] %5d  %8lu %8lu %3u     %3d  %s\n",
-				task->pid, task_uid(task),
-				task->mm->total_vm, get_mm_rss(task->mm),
-				task_cpu(task), task->signal->oom_adj, task->comm);
-		task_unlock(task);
+		lowmem_print(4, "lowmem_shrink of kswapd tunning for highmem "
+			     "ofree %d, %d\n", *other_free, *other_file);
+	} else {
+		tune_lmk_zone_param(zonelist, classzone_idx, other_free,
+			       other_file, use_cma_pages);
+
+		if (!use_cma_pages) {
+			*other_free -=
+			  zone_page_state(preferred_zone, NR_FREE_CMA_PAGES);
+		}
+
+		lowmem_print(4, "lowmem_shrink tunning for others ofree %d, "
+			     "%d\n", *other_free, *other_file);
 	}
 }
 
