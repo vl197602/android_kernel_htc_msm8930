@@ -65,7 +65,7 @@ struct sync_timeline_ops {
 struct sync_timeline {
 	struct kref		kref;
 	const struct sync_timeline_ops	*ops;
-	char			name[32];
+	char			name[64];
 
 	
 	bool			destroyed;
