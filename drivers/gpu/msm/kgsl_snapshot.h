@@ -44,6 +44,7 @@ struct kgsl_snapshot_section_header {
 #define KGSL_SNAPSHOT_SECTION_DEBUG        0x0901
 #define KGSL_SNAPSHOT_SECTION_DEBUGBUS     0x0A01
 #define KGSL_SNAPSHOT_SECTION_GPU_OBJECT   0x0B01
+#define KGSL_SNAPSHOT_SECTION_MEMLIST      0x0E01
 
 #define KGSL_SNAPSHOT_SECTION_END          0xFFFF
 
@@ -87,6 +88,21 @@ struct kgsl_snapshot_rb {
 	int count;  
 } __packed;
 
+<<<<<<< HEAD
+=======
+/* Replay or Memory list section, both sections have same header */
+struct kgsl_snapshot_replay_mem_list {
+	/*
+	 * Number of IBs to replay for replay section or
+	 * number of memory list entries for mem list section
+	 */
+	int num_entries;
+	/* Pagetable base to which the replay IBs or memory entries belong */
+	__u32 ptbase;
+} __packed;
+
+/* Indirect buffer sub-section header */
+>>>>>>> e87e3df... msm: kgsl: Add a section to list memory entries in snapshot
 struct kgsl_snapshot_ib {
 	__u32 gpuaddr; 
 	__u32 ptbase;  
