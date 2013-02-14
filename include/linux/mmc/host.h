@@ -22,7 +22,9 @@
 
 #define SD_DEBOUNCE_DEBUG	1
 struct mmc_ios {
-	unsigned int	clock;			
+	unsigned int	clock;			/* clock rate */
+	unsigned int	old_rate;       /* saved clock rate */
+	unsigned long	clk_ts;         /* time stamp of last updated clock */
 	unsigned short	vdd;
 
 
