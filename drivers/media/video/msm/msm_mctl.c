@@ -853,22 +853,7 @@ static int msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 			VIDIOC_MSM_AXI_RELEASE, NULL);
 	}
 
-
-	if (p_mctl->isp_sdev && p_mctl->isp_sdev->isp_release)
-		p_mctl->isp_sdev->isp_release(p_mctl,
-			p_mctl->isp_sdev->sd);
-
-	if (camdev->is_csid) {
-		v4l2_subdev_call(p_mctl->csid_sdev, core, ioctl,
-			VIDIOC_MSM_CSID_RELEASE, NULL);
-	}
-
-	if (camdev->is_csic) {
-		v4l2_subdev_call(p_mctl->csic_sdev, core, ioctl,
-			VIDIOC_MSM_CSIC_RELEASE, NULL);
-	}
-
-	if (camdev->is_csiphy) {
+	if (p_mctl->csiphy_sdev) {
 		v4l2_subdev_call(p_mctl->csiphy_sdev, core, ioctl,
 			VIDIOC_MSM_CSIPHY_RELEASE, NULL);
 	}
@@ -891,10 +876,14 @@ static int msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 #endif
 	}
 
-	if (p_mctl->sdata->htc_image == HTC_CAMERA_IMAGE_YUSHANII_BOARD) {
-#ifdef CONFIG_RAWCHIPII
-		YushanII_release();
-#endif
+	if (p_mctl->csid_sdev) {
+		v4l2_subdev_call(p_mctl->csid_sdev, core, ioctl,
+			VIDIOC_MSM_CSID_RELEASE, NULL);
+	}
+
+	if (p_mctl->act_sdev) {
+		v4l2_subdev_call(p_mctl->act_sdev, core, s_power, 0);
+		p_mctl->act_sdev = NULL;
 	}
 	
 	rc = msm_camio_probe_off(s_ctrl);
