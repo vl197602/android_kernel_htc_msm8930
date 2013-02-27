@@ -596,21 +596,18 @@ EXPORT_SYMBOL(hdmi_msm_get_io_base);
 
 static void hdmi_msm_setup_video_mode_lut(void)
 {
-	HDMI_SETUP_LUT(640x480p60_4_3);
-	HDMI_SETUP_LUT(720x480p60_4_3);
-	HDMI_SETUP_LUT(720x480p60_16_9);
-	HDMI_SETUP_LUT(1280x720p60_16_9);
-	
-	HDMI_SETUP_LUT(1440x480i60_4_3);
-	HDMI_SETUP_LUT(1440x480i60_16_9);
-	
-	HDMI_SETUP_LUT(720x576p50_4_3);
-	HDMI_SETUP_LUT(720x576p50_16_9);
-	HDMI_SETUP_LUT(1280x720p50_16_9);
-	HDMI_SETUP_LUT(1440x576i50_4_3);
-	HDMI_SETUP_LUT(1440x576i50_16_9);
-	
-	HDMI_SETUP_LUT(1920x1080p24_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_640x480p60_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x480p60_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x480p60_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1280x720p60_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x480i60_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x480i60_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x576p50_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_720x576p50_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1280x720p50_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x576i50_4_3);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1440x576i50_16_9);
+	MSM_HDMI_MODES_SET_TIMING(hdmi_common_supported_video_mode_lut, HDMI_VFRMT_1920x1080p24_16_9);
 }
 
 #ifdef PORT_DEBUG
