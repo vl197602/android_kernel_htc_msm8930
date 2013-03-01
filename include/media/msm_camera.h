@@ -1,5 +1,5 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
- *
+/* Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
+*
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
  * only version 2 as published by the Free Software Foundation.
@@ -798,53 +798,35 @@ struct msm_snapshot_pp_status {
 #define CFG_GET_3D_CALI_DATA 30
 #define CFG_GET_CALIB_DATA		31
 #define CFG_GET_OUTPUT_INFO		32
-#define CFG_GET_EEPROM_DATA		33
-#define CFG_SET_ACTUATOR_INFO		34
-#define CFG_GET_ACTUATOR_INFO           35
-#define CFG_SET_SATURATION            36
-#define CFG_SET_SHARPNESS             37
-#define CFG_SET_TOUCHAEC              38
-#define CFG_SET_AUTO_FOCUS            39
-#define CFG_SET_AUTOFLASH             40
-#define CFG_SET_EXPOSURE_COMPENSATION 41
-#define CFG_SET_ISO                   42
-#if 1 
-#define CFG_SET_OV_LSC_RAW_CAPTURE 43
-#define CFG_SET_COORDINATE		44
-#define CFG_RUN_AUTO_FOCUS		45
-#define CFG_CANCEL_AUTO_FOCUS		46
-#define CFG_GET_EXP_FOR_LED		47
-#define CFG_UPDATE_AEC_FOR_LED		48
-#define CFG_SET_FRONT_CAMERA_MODE	49
-#define CFG_SET_QCT_LSC_RAW_CAPTURE 50
-#define CFG_SET_QTR_SIZE_MODE		51
-#define CFG_GET_AF_STATE		52
-#define CFG_SET_DMODE			53
-#define CFG_SET_CALIBRATION	54
-#define CFG_SET_AF_MODE		55
-#define CFG_GET_SP3D_L_FRAME	56
-#define CFG_GET_SP3D_R_FRAME	57
-#define CFG_SET_FLASHLIGHT		58
-#define CFG_SET_FLASHLIGHT_EXP_DIV 59
-#define CFG_GET_ISO             60
-#define CFG_GET_EXP_GAIN	61
-#define CFG_SET_FRAMERATE 	62
-#endif 
-#define CFG_GET_ACTUATOR_CURR_STEP_POS 63
-#define CFG_GET_VCM_OPTIMIZED_POSITIONS 64 
-#define CFG_SET_ACTUATOR_AF_ALGO		65 
-#define CFG_SET_OIS_MODE                         66 
-#define CFG_SET_HDR_EXP_GAIN           67 
-#define CFG_UPDATE_OIS_TBL           68 
-#define CFG_GET_OIS_DEBUG_INFO			69
-#define CFG_GET_OIS_DEBUG_TBL			70
-#define CFG_SET_ACTUATOR_AF_VALUE		71
-#define CFG_SET_HDR_OUTDOOR_FLAG		72 
-#define CFG_SET_OIS_CALIBRATION		73 
-#define CFG_SET_VCM_CALIBRATION 74 
-#define CFG_MAX			        75
+#define CFG_GET_EEPROM_INFO		33
+#define CFG_GET_EEPROM_DATA		34
+#define CFG_SET_ACTUATOR_INFO		35
+#define CFG_GET_ACTUATOR_INFO           36
+/* TBD: QRD */
+#define CFG_SET_SATURATION            37
+#define CFG_SET_SHARPNESS             38
+#define CFG_SET_TOUCHAEC              39
+#define CFG_SET_AUTO_FOCUS            40
+#define CFG_SET_AUTOFLASH             41
+#define CFG_SET_EXPOSURE_COMPENSATION 42
+#define CFG_SET_ISO                   43
+#define CFG_START_STREAM              44
+#define CFG_STOP_STREAM               45
+#define CFG_GET_CSI_PARAMS            46
+#define CFG_POWER_UP                  47
+#define CFG_POWER_DOWN                48
+#define CFG_WRITE_I2C_ARRAY           49
+#define CFG_READ_I2C_ARRAY            50
+#define CFG_PCLK_CHANGE               51
+#define CFG_CONFIG_VREG_ARRAY         52
+#define CFG_CONFIG_CLK_ARRAY          53
+#define CFG_GPIO_OP                   54
+#define CFG_SET_VISION_MODE           55
+#define CFG_SET_VISION_AE             56
+#define CFG_HDR_UPDATE                57
+#define CFG_ACTUAOTOR_REG_INIT        58
+#define CFG_MAX                       59
 
-#define CFG_I2C_IOCTL_R_OTP 70
 
 #define MOVE_NEAR	0
 #define MOVE_FAR	1
@@ -1419,6 +1401,7 @@ struct damping_params_t {
 enum actuator_type {
 	ACTUATOR_VCM,
 	ACTUATOR_PIEZO,
+	ACTUATOR_HALL_EFFECT,
 };
 
 enum msm_actuator_data_type {
