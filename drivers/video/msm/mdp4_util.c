@@ -294,8 +294,8 @@ void mdp4_hw_init(void)
 	
 	
 
-	
-	outpdw(MDP_BASE + 0x004c, 0x02222);	
+	/* max read pending cmd config */
+	outpdw(MDP_BASE + 0x004c, 0x02222);	/* 3 pending requests */
 
 #ifndef CONFIG_FB_MSM_OVERLAY
 	
