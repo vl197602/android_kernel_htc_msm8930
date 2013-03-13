@@ -427,6 +427,12 @@ int mmc_card_support_bkops(struct mmc_card *card);
 int mmc_card_start_bkops(struct mmc_host *host);
 static inline void mmc_signal_sdio_irq(struct mmc_host *host)
 {
+	if (!host->sdio_irqs) {
+		pr_err("%s: SDIO interrupt recieved without function driver claiming an irq\n",
+				mmc_hostname(host));
+		return;
+	}
+
 	host->ops->enable_sdio_irq(host, 0);
 	host->sdio_irq_pending = true;
 	wake_up_process(host->sdio_irq_thread);
