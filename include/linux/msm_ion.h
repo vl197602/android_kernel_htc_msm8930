@@ -39,6 +39,7 @@ enum ion_heap_ids {
 	ION_CP_MFC_HEAP_ID = 12,
 	ION_CP_WB_HEAP_ID = 16, /* 8660 only */
 	ION_CAMERA_HEAP_ID = 20, /* 8660 only */
+	ION_SYSTEM_CONTIG_HEAP_ID = 21,
 	ION_ADSP_HEAP_ID = 22,
 	ION_SF_HEAP_ID = 24,
 	ION_IOMMU_HEAP_ID = 25,
@@ -98,6 +99,7 @@ enum cp_mem_usage {
 
 #define ION_ADSP_HEAP_NAME	"adsp"
 #define ION_VMALLOC_HEAP_NAME	"vmalloc"
+#define ION_KMALLOC_HEAP_NAME	"kmalloc"
 #define ION_AUDIO_HEAP_NAME	"audio"
 #define ION_SF_HEAP_NAME	"sf"
 #define ION_MM_HEAP_NAME	"mm"
@@ -182,18 +184,30 @@ struct ion_cp_heap_pdata {
  *			goes from 1 -> 0
  * @setup_region:	function to be called upon ion registration
  * @memory_type:Memory type used for the heap
->>>>>>> 488f4a6... iommu and shit.
- *
- * This software is licensed under the terms of the GNU General Public
- * License version 2, as published by the Free Software Foundation, and
- * may be copied, distributed, and modified under those terms.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  */
+
+struct ion_co_heap_pdata {
+	int adjacent_mem_id;
+	unsigned int align;
+	int mem_is_fmem;
+	enum ion_fixed_position fixed_position;
+	int (*request_region)(void *);
+	int (*release_region)(void *);
+	void *(*setup_region)(void);
+	enum ion_memory_types memory_type;
+};
+
+#ifdef CONFIG_ION
+/**
+ * msm_ion_secure_heap - secure a heap. Wrapper around ion_secure_heap.
+ *
+  * @heap_id - heap id to secure.
+ *
+ * Secure a heap
+ * Returns 0 on success
+ */
+int msm_ion_secure_heap(int heap_id);
 
 /**
  * msm_ion_unsecure_heap - unsecure a heap. Wrapper around ion_unsecure_heap.
