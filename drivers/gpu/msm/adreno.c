@@ -1716,7 +1716,8 @@ static int _find_cmd_seq_after_eop_ts(struct adreno_ringbuffer *rb,
 	}
 	if (status)
 		KGSL_FT_ERR(rb->device,
-		"Failed to find the command sequence after eop timestamp\n");
+		"Failed to find the command sequence after eop timestamp %x\n",
+		global_eop);
 	return status;
 }
 
@@ -1828,6 +1829,7 @@ static int adreno_setup_ft_data(struct kgsl_device *device,
 	if (!adreno_dev->ft_policy)
 		adreno_dev->ft_policy = KGSL_FT_DEFAULT_POLICY;
 
+	/* Look for the command stream that is right after the global eop */
 	ret = _find_cmd_seq_after_eop_ts(rb, &rb_rptr,
 					ft_data->global_eop + 1, false);
 	if (ret) {
@@ -1836,7 +1838,7 @@ static int adreno_setup_ft_data(struct kgsl_device *device,
 	} else {
 		ft_data->start_of_replay_cmds = rb_rptr;
 		ft_data->ft_policy &= ~KGSL_FT_TEMP_DISABLE;
-}
+	}
 
 	if (context) {
 		adreno_context = context->devctxt;
@@ -1890,7 +1892,6 @@ _adreno_ft_restart_device(struct kgsl_device *device,
 		   struct kgsl_context *context,
 		   struct adreno_ft_data *ft_data)
 {
-
 	struct adreno_context *adreno_context = NULL;
 
 	
@@ -1985,19 +1986,25 @@ _adreno_ft(struct kgsl_device *device,
 	struct adreno_ringbuffer *rb = NULL;
 	struct kgsl_context *context;
 	struct adreno_context *adreno_context = NULL;
-	struct adreno_context *last_active_ctx = NULL;
+	struct adreno_context *last_active_ctx = adreno_dev->drawctxt_active;
+	unsigned int long_ib = 0;
+	static int no_context_ft;
 
 	context = kgsl_context_get(device, ft_data->context_id);
 
 	if (context == NULL) {
 		KGSL_FT_CRIT(device, "Last context unknown id:%d\n",
 			ft_data->context_id);
-		return -EINVAL;
-	} else if (context->devctxt == NULL) {
-		KGSL_FT_CRIT(device, "Last no adreno context, kgsl context id:%d\n",
-			context->id);
-		return -EINVAL;
+		if (no_context_ft) {
+			/*
+			 * If 2 consecutive no context ft occurred then
+			 * just reset GPU
+			 */
+			no_context_ft = 0;
+			goto play_good_cmds;
+		}
 	} else {
+		no_context_ft = 0;
 		adreno_context = context->devctxt;
 		adreno_context->flags |= CTXT_FLAGS_GPU_HANG;
 		context->wait_on_invalid_ts = false;
@@ -2030,6 +2037,17 @@ _adreno_ft(struct kgsl_device *device,
 	if (ft_data->ft_policy & KGSL_FT_DISABLE) {
 		KGSL_FT_ERR(device, "NO FT policy play only good cmds\n");
 		goto play_good_cmds;
+	}
+
+	/* Do not try the reply if hang is due to a pagefault */
+	if (adreno_context && adreno_context->pagefault) {
+		if ((ft_data->context_id == adreno_context->id) &&
+			(ft_data->global_eop == adreno_context->pagefault_ts)) {
+			ft_data->ft_policy &= ~KGSL_FT_REPLAY;
+			KGSL_FT_ERR(device, "MMU fault skipping replay\n");
+		}
+
+		adreno_context->pagefault = 0;
 	}
 
 	if (ft_data->ft_policy & KGSL_FT_REPLAY) {
@@ -2088,7 +2106,9 @@ _adreno_ft(struct kgsl_device *device,
 			}
 		}
 
-		if (i == ft_data->bad_rb_size) {
+		/* EOF not found in RB, discard till EOF in
+		   next IB submission */
+		if (adreno_context && (i == ft_data->bad_rb_size)) {
 			adreno_context->flags |= CTXT_FLAGS_SKIP_EOF;
 			KGSL_FT_INFO(device,
 			"EOF not found in RB, skip next issueib till EOF\n");
@@ -2125,6 +2145,14 @@ play_good_cmds:
 			ft_data->good_rb_buffer, ft_data->good_rb_size);
 
 	if (ret) {
+		/*
+		 * If we fail here we can try to invalidate another
+		 * context and try fault tolerance again, although
+		 * we will only try ft with no context once to avoid
+		 * going into continuous loop of trying ft with no context
+		 */
+		if (!context)
+			no_context_ft = 1;
 		ret = -EAGAIN;
 		KGSL_FT_ERR(device, "Playing good commands unsuccessful\n");
 		goto done;
@@ -3221,6 +3249,32 @@ unsigned int adreno_ft_detect(struct kgsl_device *device,
 
 		mb();
 
+		for (i = 0; i < FT_DETECT_REGS_COUNT; i++) {
+			if (curr_reg_val[i] != prev_reg_val[i]) {
+				fast_hang_detected = 0;
+
+				/* Check for long IB here */
+				if ((i >=
+					LONG_IB_DETECT_REG_INDEX_START)
+					&&
+					(i <=
+					LONG_IB_DETECT_REG_INDEX_END))
+					long_ib_detected = 0;
+			}
+		}
+
+		if (fast_hang_detected) {
+			KGSL_FT_ERR(device,
+				"Proc %s, ctxt_id %d ts %d triggered fault tolerance"
+				" on global ts %d\n",
+				curr_context ? curr_context->pid_name : "",
+				curr_context ? curr_context->id : 0,
+				(kgsl_readtimestamp(device, context,
+				KGSL_TIMESTAMP_RETIRED) + 1),
+				curr_global_ts + 1);
+			return 1;
+		}
+
 		if (curr_context != NULL) {
 
 			curr_context->ib_gpu_time_used += KGSL_TIMEOUT_PART;
@@ -3228,31 +3282,6 @@ unsigned int adreno_ft_detect(struct kgsl_device *device,
 			"Proc %s used GPU Time %d ms on timestamp 0x%X\n",
 			curr_context->pid_name, curr_context->ib_gpu_time_used,
 			curr_global_ts+1);
-
-			for (i = 0; i < FT_DETECT_REGS_COUNT; i++) {
-				if (curr_reg_val[i] != prev_reg_val[i]) {
-					fast_hang_detected = 0;
-
-					
-					if ((i >=
-						LONG_IB_DETECT_REG_INDEX_START)
-						&&
-						(i <=
-						LONG_IB_DETECT_REG_INDEX_END))
-						long_ib_detected = 0;
-				}
-			}
-
-			if (fast_hang_detected) {
-				KGSL_FT_ERR(device,
-					"Proc %s, ctxt_id %d ts %d triggered fault tolerance"
-					" on global ts %d\n",
-					curr_context->pid_name, curr_context->id
-					, (kgsl_readtimestamp(device, context,
-					KGSL_TIMESTAMP_RETIRED)+1),
-					curr_global_ts+1);
-				return 1;
-			}
 
 			if ((long_ib_detected) &&
 				(!(curr_context->flags &
@@ -3282,10 +3311,6 @@ unsigned int adreno_ft_detect(struct kgsl_device *device,
 					}
 				}
 			}
-		} else {
-			KGSL_FT_ERR(device,
-				"Last context unknown id:%d\n",
-				curr_context_id);
 		}
 	} else {
 		
