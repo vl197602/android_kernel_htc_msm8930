@@ -396,6 +396,11 @@ static void grmnet_ctrl_smd_disconnect_w(struct work_struct *w)
 	struct platform_driver *pdrv;
 
 	c = &port->ctrl_ch;
+	if (c->ch) {
+		smd_close(c->ch);
+		c->ch = NULL;
+	}
+
 	if (test_bit(CH_READY, &c->flags) ||
 	    test_bit(CH_PREPARE_READY, &c->flags)) {
 		clear_bit(CH_PREPARE_READY, &c->flags);
@@ -444,11 +449,6 @@ void gsmd_ctrl_disconnect(struct grmnet *gr, u8 port_num)
 	if (test_and_clear_bit(CH_OPENED, &c->flags))
 		
 		smd_tiocmset(c->ch, c->cbits_tomodem, ~c->cbits_tomodem);
-
-	if (c->ch) {
-		smd_close(c->ch);
-		c->ch = NULL;
-	}
 
 	queue_delayed_work(grmnet_ctrl_wq, &port->disconnect_w, 0);
 }
