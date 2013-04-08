@@ -96,5 +96,12 @@ struct snd_compr_audio_info {
 #define SNDRV_COMPRESS_START		_IO('C', 0x32)
 #define SNDRV_COMPRESS_STOP		_IO('C', 0x33)
 #define SNDRV_COMPRESS_DRAIN		_IO('C', 0x34)
-#define SND_COMPR_TRIGGER_DRAIN 7 
+/*
+ * TODO
+ * 1. add mmap support
+ *
+ */
+#define SND_COMPR_TRIGGER_DRAIN 7 /*FIXME move this to pcm.h */
+
+#define SNDRV_COMPRESS_METADATA_MODE          _IOW('C', 0x99, bool)
 #endif
