@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -46,14 +46,16 @@ static int mipi_video_truly_qhd_pt_init(void)
 	pinfo.pdest = DISPLAY_1;
 	pinfo.wait_cycle = 0;
 	pinfo.bpp = 24;
-	pinfo.lcdc.h_back_porch = 100;
-	pinfo.lcdc.h_front_porch = 100;
-	pinfo.lcdc.h_pulse_width = 8;
-	pinfo.lcdc.v_back_porch = 20;
-	pinfo.lcdc.v_front_porch = 20;
-	pinfo.lcdc.v_pulse_width = 1;
-	pinfo.lcdc.border_clr = 0;	
-	pinfo.lcdc.underflow_clr = 0xff;	
+
+	pinfo.lcdc.h_back_porch  = 6;
+	pinfo.lcdc.h_front_porch = 6;
+	pinfo.lcdc.h_pulse_width = 2;
+	pinfo.lcdc.v_back_porch  = 6;
+	pinfo.lcdc.v_front_porch = 6;
+	pinfo.lcdc.v_pulse_width = 2;
+
+	pinfo.lcdc.border_clr = 0;	/* blk */
+	pinfo.lcdc.underflow_clr = 0xff;	/* blue */
 	pinfo.lcdc.hsync_skew = 0;
 	pinfo.clk_rate = 699000000;
 	pinfo.lcd.refx100 = 6000; 
@@ -76,12 +78,10 @@ static int mipi_video_truly_qhd_pt_init(void)
 	pinfo.mipi.rgb_swap = DSI_RGB_SWAP_RGB; 
 	pinfo.mipi.data_lane0 = TRUE;
 	pinfo.mipi.data_lane1 = TRUE;
-
-	pinfo.mipi.t_clk_post = 0x20;
-	pinfo.mipi.t_clk_pre = 0x2f;
-
-	pinfo.mipi.stream = 0; 
-	pinfo.mipi.mdp_trigger = DSI_CMD_TRIGGER_NONE;
+	pinfo.mipi.t_clk_post = 0x03;
+	pinfo.mipi.t_clk_pre = 0x24;
+	pinfo.mipi.stream = 0; /* dma_p */
+	pinfo.mipi.mdp_trigger = DSI_CMD_TRIGGER_SW;
 	pinfo.mipi.dma_trigger = DSI_CMD_TRIGGER_SW;
 	pinfo.mipi.frame_rate = 60;
 
