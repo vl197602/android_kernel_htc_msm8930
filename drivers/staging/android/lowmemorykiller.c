@@ -40,7 +40,6 @@
 #include <linux/mutex.h>
 #include <linux/delay.h>
 
-extern void show_meminfo(void);
 static uint32_t lowmem_debug_level = 2;
 static int lowmem_adj[6] = {
 	0,
@@ -257,7 +256,6 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		lowmem_deathpending_timeout = jiffies + HZ;
 		if (selected_oom_adj < 7)
 		{
-			show_meminfo();
 			dump_tasks();
 		}
 		send_sig(SIGKILL, selected, 0);
