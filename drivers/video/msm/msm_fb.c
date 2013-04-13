@@ -1665,9 +1665,13 @@ static int msm_fb_mmap(struct fb_info *info, struct vm_area_struct * vma)
 		((vma->vm_end - vma->vm_start) > (len - off)))
                 return -EINVAL;
 
-	msm_fb_pan_idle(mfd);
+	if ((vma->vm_end <= vma->vm_start) ||
+	    (off >= len) ||
+	    ((vma->vm_end - vma->vm_start) > (len - off)))
+		return -EINVAL;
 
-	
+	msm_fb_pan_idle(mfd);
+	/* Set VM flags. */
 	start &= PAGE_MASK;
 	off += start;
 	if (off < start)
