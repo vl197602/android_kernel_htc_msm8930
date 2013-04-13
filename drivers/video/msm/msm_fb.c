@@ -1502,18 +1502,12 @@ static int msm_fb_mmap(struct fb_info *info, struct vm_area_struct * vma)
 	if (!start)
 		return -EINVAL;
 
-	msm_fb_pan_idle(mfd);
-	if (off >= len) {
-		/* memory mapped io */
-		off -= len;
-		if (info->var.accel_flags) {
-			mutex_unlock(&info->lock);
-			return -EINVAL;
-		}
-		start = info->fix.mmio_start;
-		len = PAGE_ALIGN((start & ~PAGE_MASK) + info->fix.mmio_len);
-	}
+	if ((vma->vm_end <= vma->vm_start) ||
+	    (off >= len) ||
+	    ((vma->vm_end - vma->vm_start) > (len - off)))
+		return -EINVAL;
 
+	msm_fb_pan_idle(mfd);
 	/* Set VM flags. */
 	start &= PAGE_MASK;
 	off += start;
