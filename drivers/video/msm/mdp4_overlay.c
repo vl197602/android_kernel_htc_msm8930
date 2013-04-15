@@ -2752,9 +2752,8 @@ int mdp4_overlay_mdp_perf_req(struct msm_fb_data_type *mfd,
 	pr_debug("%s %d pid %d cnt %d clk %d ov0_blt %d, ov1_blt %d bw %d\n",
 		 __func__, __LINE__, current->pid, cnt,
 		 perf_req->mdp_clk_rate,
-		 perf_req->use_ov0_blt,
-		 perf_req->use_ov1_blt,
-		 perf_req->mdp_bw);
+		 perf_req->use_ov_blt[0],
+		 perf_req->use_ov_blt[1]);
 
 	return 0;
 }
@@ -3100,23 +3099,7 @@ int mdp4_overlay_set(struct fb_info *info, struct mdp_overlay *req)
 
 	mdp4_overlay_mdp_pipe_req(pipe, mfd);
 
-	if (ret)
-		pr_err("%s: blt mode should not be enabled\n", __func__);
-
 	mutex_unlock(&mfd->dma->ov_mutex);
-
-#ifdef CONFIG_MSM_CABC_VIDEO_ENHANCE
-	if (cabc_cur_mode != cabc_mode) {
-		pdata = (struct msm_fb_panel_data *)mfd->pdev->
-			dev.platform_data;
-		if ((pdata) && (pdata->set_cabc)) {
-			down(&mfd->sem);
-			pdata->set_cabc(mfd, cabc_mode);
-			cabc_cur_mode = cabc_mode;
-			up(&mfd->sem);
-		}
-	}
-#endif
 
 	return 0;
 }
