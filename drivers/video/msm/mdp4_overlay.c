@@ -3100,6 +3100,9 @@ int mdp4_overlay_set(struct fb_info *info, struct mdp_overlay *req)
 
 	mdp4_overlay_mdp_pipe_req(pipe, mfd);
 
+	if (ret)
+		pr_err("%s: blt mode should not be enabled\n", __func__);
+
 	mutex_unlock(&mfd->dma->ov_mutex);
 
 #ifdef CONFIG_MSM_CABC_VIDEO_ENHANCE
