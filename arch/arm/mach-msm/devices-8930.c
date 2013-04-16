@@ -33,10 +33,44 @@
 #include "rpm_log.h"
 #include "rpm_stats.h"
 #include "footswitch.h"
+#include "acpuclock-krait.h"
+#include "pm.h"
 
 #ifdef CONFIG_MSM_MPM
 #include <mach/mpm.h>
 #endif
+#define MSM8930_RPM_MASTER_STATS_BASE	0x10B100
+#define MSM8930_PC_CNTR_PHYS	(MSM8930_IMEM_PHYS + 0x664)
+#define MSM8930_PC_CNTR_SIZE		0x40
+
+static struct msm_pm_sleep_status_data msm_pm_slp_sts_data = {
+	.base_addr = MSM_ACC0_BASE + 0x08,
+	.cpu_offset = MSM_ACC1_BASE - MSM_ACC0_BASE,
+	.mask = 1UL << 13,
+};
+
+struct platform_device msm8930_cpu_slp_status = {
+	.name		= "cpu_slp_status",
+	.id		= -1,
+	.dev = {
+		.platform_data = &msm_pm_slp_sts_data,
+	},
+};
+
+static struct resource msm8930_resources_pccntr[] = {
+	{
+		.start	= MSM8930_PC_CNTR_PHYS,
+		.end	= MSM8930_PC_CNTR_PHYS + MSM8930_PC_CNTR_SIZE,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device msm8930_pc_cntr = {
+	.name		= "pc-cntr",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(msm8930_resources_pccntr),
+	.resource	= msm8930_resources_pccntr,
+};
 
 struct msm_rpm_platform_data msm8930_rpm_data __initdata = {
 	.reg_base_addrs = {

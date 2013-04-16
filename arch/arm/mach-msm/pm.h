@@ -58,6 +58,19 @@ enum msm_pm_sleep_mode {
 
 #define MSM_PM_MODE(cpu, mode_nr)  ((cpu) * MSM_PM_SLEEP_MODE_NR + (mode_nr))
 
+struct msm_pm_time_params {
+	uint32_t latency_us;
+	uint32_t sleep_us;
+	uint32_t next_event_us;
+	uint32_t modified_time_us;
+};
+
+struct msm_pm_sleep_status_data {
+	void *base_addr;
+	uint32_t cpu_offset;
+	uint32_t mask;
+};
+
 struct msm_pm_platform_data {
 	u8 idle_supported;   
 	u8 suspend_supported; 
@@ -101,13 +114,13 @@ void msm_pm_set_rpm_wakeup_irq(unsigned int irq);
 int msm_pm_wait_cpu_shutdown(unsigned int cpu);
 bool msm_pm_verify_cpu_pc(unsigned int cpu);
 void msm_pm_set_sleep_ops(struct msm_pm_sleep_ops *ops);
-void msm_pm_radio_info_init(unsigned int *addr);
+int msm_pm_wait_cpu_shutdown(unsigned int cpu);
 #else
 static inline void msm_pm_set_rpm_wakeup_irq(unsigned int irq) {}
 static inline int msm_pm_wait_cpu_shutdown(unsigned int cpu) { return 0; }
 static inline bool msm_pm_verify_cpu_pc(unsigned int cpu) { return true; }
 static inline void msm_pm_set_sleep_ops(struct msm_pm_sleep_ops *ops) {}
-static inline void msm_pm_radio_info_init(unsigned int *addr) {}
+static inline int msm_pm_wait_cpu_shutdown(unsigned int cpu) { return 0; }
 #endif
 #ifdef CONFIG_HOTPLUG_CPU
 int msm_platform_secondary_init(unsigned int cpu);
