@@ -96,9 +96,14 @@
 
 #define DBPC_MASK 0xFFFFFFFE
 
+/* For DBCC bit 1 is set to zero and other's 1 */
 #define DBCC_MASK 0xFFFFFFFD
 
-#define DEMOSAIC_MASK 0xF
+/* For ABCC bit 1 is set to zero and other's 1 */
+#define ABCC_MASK 0xFFFFFFFB
+
+/* For DBPC/ABF/DBCC/ABCC bits are set to 1 all others 0 */
+#define DEMOSAIC_MASK 0x10F
 
 #define MCE_EN_MASK 0xEFFFFFFF
 
@@ -238,6 +243,9 @@ enum vfe_output_state {
 #define V33_PCA_ROLL_OFF_CFG_OFF2             0x000007A8
 #define V33_PCA_ROLL_OFF_TABLE_SIZE           (17 + (13*4))
 #define V33_PCA_ROLL_OFF_LUT_BANK_SEL_MASK    0x00010000
+
+#define V33_ABCC_LUT_TABLE_SIZE       512
+#define V33_ABCC_LUT_BANK_SEL_MASK    0x00000100
 
 #define V32_COLOR_COR_OFF 0x00000388
 #define V32_COLOR_COR_LEN 52
@@ -924,11 +932,7 @@ struct vfe32_ctrl_type {
 	int8_t update_rolloff;
 	int8_t update_la;
 	int8_t update_gamma;
-	enum vfe_output_state liveshot_state;
-
-
-	void __iomem *vfebase;
-	uint32_t register_total;
+	int8_t update_abcc;
 
 
 	uint32_t stats_comp;
