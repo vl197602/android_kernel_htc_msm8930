@@ -1964,14 +1964,11 @@ _adreno_ft(struct kgsl_device *device,
 
 	}
 
-	adreno_ringbuffer_extract(rb, ft_data);
-
-	if (adreno_dev->long_ib) {
-		if (_adreno_check_long_ib(device)) {
-			ft_data->status = 1;
-			_adreno_debug_ft_info(device, ft_data);
-			goto play_good_cmds;
-		} else {
+	/* Check if we detected a long running IB,
+	 * if true do not attempt replay of bad cmds */
+	if ((adreno_context) && (adreno_dev->long_ib)) {
+		long_ib = _adreno_check_long_ib(device);
+		if (!long_ib) {
 			adreno_context->flags &= ~CTXT_FLAGS_GPU_HANG;
 			return 0;
 		}
