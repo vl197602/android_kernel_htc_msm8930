@@ -309,7 +309,37 @@ void mdp4_writeback_kickoff_video(struct msm_fb_data_type *mfd,
 	}
 	mutex_unlock(&mfd->writeback_mutex);
 
-	writeback_pipe->ov_blt_addr = (ulong) (node ? node->addr : NULL);
+	mdp4_mixer_stage_commit(mixer);
+
+	pipe = vctrl->base_pipe;
+	spin_lock_irqsave(&vctrl->spin_lock, flags);
+	vctrl->ov_koff++;
+	INIT_COMPLETION(vctrl->ov_comp);
+	vsync_irq_enable(INTR_OVERLAY2_DONE, MDP_OVERLAY2_TERM);
+	pr_debug("%s: kickoff\n", __func__);
+	/* kickoff overlay engine */
+	mdp4_stat.kickoff_ov2++;
+	outpdw(MDP_BASE + 0x00D0, 0);
+	mb(); /* make sure kickoff executed */
+	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
+
+	mdp4_stat.overlay_commit[pipe->mixer_num]++;
+
+	if (wait)
+		mdp4_wfd_wait4ov(cndx);
+
+	mdp4_wfd_queue_wakeup(mfd, node);
+
+	return cnt;
+}
+
+static void clk_ctrl_work(struct work_struct *work)
+{
+	struct vsycn_ctrl *vctrl =
+		container_of(work, typeof(*vctrl), clk_work);
+	mdp_clk_ctrl(0);
+}
+>>>>>>> 36eaa99... msm_fb: Remove the extra MDP clock enable in writeback_commit
 
 	
 	mdp4_overlay_iommu_unmap_freelist(writeback_pipe->mixer_num);
