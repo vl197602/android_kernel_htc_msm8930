@@ -62,13 +62,12 @@ static inline void platform_do_lowpower(unsigned int cpu)
 
 int platform_cpu_kill(unsigned int cpu)
 {
-	struct completion *killed =
-		&per_cpu(msm_hotplug_devices, cpu).cpu_killed;
+	int ret;
 
-	if (!wait_for_completion_timeout(killed, HZ * 5))
-		return -EBUSY;
-
-	return msm_pm_wait_cpu_shutdown(cpu);
+	ret = msm_pm_wait_cpu_shutdown(cpu);
+	if (ret)
+		return 0;
+	return 1;
 }
 
 void platform_cpu_die(unsigned int cpu)
