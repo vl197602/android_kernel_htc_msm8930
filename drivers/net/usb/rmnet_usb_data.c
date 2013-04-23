@@ -515,6 +515,11 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 	unsigned int		iface_num;
 	static int		first_rmnet_iface_num = -EINVAL;
 	int			status = 0;
+	unsigned int		i, unet_id, rdev_cnt, n = 0;
+	bool			mux;
+	struct rmnet_ctrl_dev	*dev;
+
+	udev = interface_to_usbdev(iface);
 
 	iface_num = iface->cur_altsetting->desc.bInterfaceNumber;
 	if (iface->num_altsetting != 1) {
@@ -549,14 +554,21 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 	if (first_rmnet_iface_num == -EINVAL)
 		first_rmnet_iface_num = iface_num;
 
-	
-	unet->data[1] = (unsigned long)ctrl_dev	\
-			[iface_num - first_rmnet_iface_num];
+		/*create /sys/class/net/rmnet_usbx/dbg_mask*/
+		status = device_create_file(&unet->net->dev,
+				&dev_attr_dbg_mask);
+		if (status) {
+			usbnet_disconnect(iface);
+			goto out;
+		}
 
-	status = rmnet_usb_ctrl_probe(iface, unet->status,
-		(struct rmnet_ctrl_dev *)unet->data[1]);
-	if (status)
-		goto out;
+		status = rmnet_usb_ctrl_probe(iface, unet->status, info->data,
+				&unet->data[1]);
+		if (status) {
+			device_remove_file(&unet->net->dev, &dev_attr_dbg_mask);
+			usbnet_disconnect(iface);
+			goto out;
+		}
 
 	status = rmnet_usb_data_debugfs_init(unet);
 	if (status)
@@ -575,6 +587,20 @@ static int rmnet_usb_probe(struct usb_interface *iface,
 	}
 
 out:
+	for (i = 0; i < n; i++) {
+		/* This cleanup happens only for MUX case */
+		unet_id = i + info->data * no_rmnet_insts_per_dev;
+		unet = unet_list[unet_id];
+		dev = (struct rmnet_ctrl_dev *)unet->data[1];
+
+		rmnet_usb_data_debugfs_cleanup(unet);
+		rmnet_usb_ctrl_disconnect(dev);
+		device_remove_file(&unet->net->dev, &dev_attr_dbg_mask);
+		usb_set_intfdata(iface, unet_list[unet_id]);
+		usbnet_disconnect(iface);
+		unet_list[unet_id] = NULL;
+	}
+
 	return status;
 }
 
