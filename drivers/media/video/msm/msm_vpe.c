@@ -694,7 +694,39 @@ static const struct v4l2_subdev_ops msm_vpe_subdev_ops = {
 
 static const struct v4l2_subdev_internal_ops msm_vpe_internal_ops;
 
-static int __devinit vpe_probe(struct platform_device *pdev)
+static int msm_vpe_subdev_close(struct v4l2_subdev *sd,
+	struct v4l2_subdev_fh *fh)
+{
+	struct vpe_ctrl_type *vpe_ctrl = v4l2_get_subdevdata(sd);
+	struct msm_mctl_pp_frame_info *frame_info = vpe_ctrl->pp_frame_info;
+	struct msm_cam_media_controller *mctl;
+	mctl = v4l2_get_subdev_hostdata(sd);
+	if (atomic_read(&vpe_ctrl->active) == 0) {
+		pr_err("%s already closed\n", __func__);
+		return -EINVAL;
+	}
+
+	D("%s E ", __func__);
+	if (frame_info) {
+		D("%s Unmap the pending item from the queue ", __func__);
+		msm_mctl_unmap_user_frame(&frame_info->src_frame,
+			frame_info->p_mctl->client, mctl->domain_num);
+		msm_mctl_unmap_user_frame(&frame_info->dest_frame,
+			frame_info->p_mctl->client, mctl->domain_num);
+	}
+	vpe_ctrl->pp_frame_info = NULL;
+	/* Drain the payload queue. */
+	msm_queue_drain(&vpe_ctrl->eventData_q, list_eventdata);
+	atomic_dec(&vpe_ctrl->active);
+	return 0;
+}
+
+static const struct v4l2_subdev_internal_ops msm_vpe_internal_ops = {
+	.open = msm_vpe_subdev_open,
+	.close = msm_vpe_subdev_close,
+};
+
+static int __devinit msm_vpe_probe(struct platform_device *pdev)
 {
 	int rc = 0;
 	CDBG("%s: device id = %d\n", __func__, pdev->id);
