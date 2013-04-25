@@ -1544,8 +1544,8 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 			mfd->op_enable = FALSE;
 			curr_pwr_state = mfd->panel_power_on;
 			mfd->panel_power_on = FALSE;
-			down(&mfd->sem);
-			bl_updated = 0;
+			if (mfd->fbi->node == 0)
+				bl_updated = 0;
 			up(&mfd->sem);
 
 			down(&msm_fb_pan_sem);
@@ -2359,7 +2359,7 @@ static int msm_fb_open(struct fb_info *info, int user)
 static int msm_fb_release(struct fb_info *info, int user)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
-	int ret = 0;
+	int ret = 0, bl_level = 0;
 
 	if (!mfd->ref_cnt) {
 		MSM_FB_INFO("msm_fb_release: try to close unopened fb %d!\n",
@@ -2370,18 +2370,22 @@ static int msm_fb_release(struct fb_info *info, int user)
 	mfd->ref_cnt--;
 
 	if (!mfd->ref_cnt) {
-		if (mfd->suspend.op_suspend) {
-			
-			mfd->sw_refreshing_enable = mfd->suspend.sw_refreshing_enable;
-			mfd->op_enable = mfd->suspend.op_enable;
-			mfd->panel_power_on = mfd->suspend.panel_power_on;
-			mfd->suspend.op_suspend = false;
-		}
-		if ((ret =
-		     msm_fb_blank_sub(FB_BLANK_POWERDOWN, info,
-				      mfd->op_enable)) != 0) {
-			printk(KERN_ERR "msm_fb_release: can't turn off display!\n");
-			return ret;
+		if (mfd->op_enable) {
+			if (info->node == 0) {
+				down(&mfd->sem);
+				bl_level = mfd->bl_level;
+				msm_fb_set_backlight(mfd, 0);
+				unset_bl_level = bl_level;
+				up(&mfd->sem);
+			}
+			ret = msm_fb_blank_sub(FB_BLANK_POWERDOWN, info,
+							mfd->op_enable);
+			if (ret != 0) {
+				printk(KERN_ERR "msm_fb_release: can't turn off display!\n");
+				return ret;
+			}
+		} else {
+			msm_fb_free_base_pipe(mfd);
 		}
 	}
 
@@ -2749,6 +2753,9 @@ static void msm_fb_commit_wq_handler(struct work_struct *work)
 	complete_all(&mfd->commit_comp);
 	mutex_unlock(&mfd->sync_mutex);
 
+	if (!bl_updated)
+		schedule_delayed_work(&mfd->backlight_worker,
+					backlight_duration);
 }
 
 static int msm_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
