@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -446,9 +446,31 @@
 #define SITAR_A_CDC_TX2_MUX_CTL__POR			(0x00000008)
 #define SITAR_A_CDC_TX3_MUX_CTL                 (0x233)
 #define SITAR_A_CDC_TX3_MUX_CTL__POR			(0x00000008)
-#define SITAR_A_CDC_TX4_MUX_CTL                 (0x23B)
+#define SITAR_A_CDC_TX3_CLK_FS_CTL		(0x234)
+#define SITAR_A_CDC_TX3_CLK_FS_CTL__POR			(0x00000003)
+#define SITAR_A_CDC_TX3_DMIC_CTL		(0x235)
+#define SITAR_A_CDC_TX3_DMIC_CTL__POR			(0x00000000)
+
+#define SITAR_A_CDC_TX4_VOL_CTL_TIMER		(0x238)
+#define SITAR_A_CDC_TX4_VOL_CTL_TIMER__POR		(0x00000000)
+#define SITAR_A_CDC_TX4_VOL_CTL_GAIN		(0x239)
+#define SITAR_A_CDC_TX4_VOL_CTL_GAIN__POR		(0x00000000)
+#define SITAR_A_CDC_TX4_VOL_CTL_CFG		(0x23A)
+#define SITAR_A_CDC_TX4_VOL_CTL_CFG__POR		(0x00000000)
+#define SITAR_A_CDC_TX4_MUX_CTL			(0x23B)
 #define SITAR_A_CDC_TX4_MUX_CTL__POR			(0x00000008)
-#define SITAR_A_CDC_TX5_MUX_CTL                 (0x243)
+#define SITAR_A_CDC_TX4_CLK_FS_CTL		(0x23C)
+#define SITAR_A_CDC_TX4_CLK_FS_CTL__POR			(0x00000003)
+#define SITAR_A_CDC_TX4_DMIC_CTL		(0x23D)
+#define SITAR_A_CDC_TX4_DMIC_CTL__POR			(0x00000000)
+
+#define SITAR_A_CDC_TX5_VOL_CTL_TIMER		(0x240)
+#define SITAR_A_CDC_TX5_VOL_CTL_TIMER__POR		(0x00000000)
+#define SITAR_A_CDC_TX5_VOL_CTL_GAIN		(0x241)
+#define SITAR_A_CDC_TX5_VOL_CTL_GAIN__POR		(0x00000000)
+#define SITAR_A_CDC_TX5_VOL_CTL_CFG		(0x242)
+#define SITAR_A_CDC_TX5_VOL_CTL_CFG__POR		(0x00000000)
+#define SITAR_A_CDC_TX5_MUX_CTL			(0x243)
 #define SITAR_A_CDC_TX5_MUX_CTL__POR			(0x00000008)
 
 #define SITAR_A_CDC_SRC1_PDA_CFG			(0x2A0)
