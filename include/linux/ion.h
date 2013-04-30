@@ -2,7 +2,7 @@
  * include/linux/ion.h
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -22,83 +22,44 @@
 #include <linux/types.h>
 
 struct ion_handle;
+/**
+ * enum ion_heap_types - list of all possible types of heaps
+ * @ION_HEAP_TYPE_SYSTEM:	 memory allocated via vmalloc
+ * @ION_HEAP_TYPE_SYSTEM_CONTIG: memory allocated via kmalloc
+ * @ION_HEAP_TYPE_CARVEOUT:	 memory allocated from a prereserved
+ * 				 carveout heap, allocations are physically
+ * 				 contiguous
+ * @ION_HEAP_TYPE_IOMMU: IOMMU memory
+ * @ION_HEAP_TYPE_CP:	 memory allocated from a prereserved
+ *				carveout heap, allocations are physically
+ *				contiguous. Used for content protection.
+ * @ION_HEAP_TYPE_DMA:          memory allocated via DMA API
+ * @ION_HEAP_END:		helper for iterating over heaps
+ */
 enum ion_heap_type {
 	ION_HEAP_TYPE_SYSTEM,
 	ION_HEAP_TYPE_SYSTEM_CONTIG,
 	ION_HEAP_TYPE_CARVEOUT,
-	ION_HEAP_TYPE_IOMMU,
-	ION_HEAP_TYPE_CP,
-	ION_HEAP_TYPE_CUSTOM, 
+	ION_HEAP_TYPE_DMA,
+	ION_HEAP_TYPE_CUSTOM, /* must be last so device specific heaps always
+				 are at the end of this enum */
 	ION_NUM_HEAPS,
 };
 
 #define ION_HEAP_SYSTEM_MASK		(1 << ION_HEAP_TYPE_SYSTEM)
 #define ION_HEAP_SYSTEM_CONTIG_MASK	(1 << ION_HEAP_TYPE_SYSTEM_CONTIG)
 #define ION_HEAP_CARVEOUT_MASK		(1 << ION_HEAP_TYPE_CARVEOUT)
-#define ION_HEAP_CP_MASK		(1 << ION_HEAP_TYPE_CP)
 
+#define ION_HEAP_TYPE_DMA_MASK         (1 << ION_HEAP_TYPE_DMA)
 
-
-enum ion_heap_ids {
-	INVALID_HEAP_ID = -1,
-	ION_CP_MM_HEAP_ID = 8,
-	ION_CP_ROTATOR_HEAP_ID = 9,
-	ION_CP_MFC_HEAP_ID = 12,
-	ION_CP_WB_HEAP_ID = 16, 
-	ION_CAMERA_HEAP_ID = 20, 
-	ION_SF_HEAP_ID = 24,
-	ION_IOMMU_HEAP_ID = 25,
-	ION_QSECOM_HEAP_ID = 27,
-	ION_AUDIO_HEAP_ID = 28,
-
-	ION_MM_FIRMWARE_HEAP_ID = 29,
-	ION_SYSTEM_HEAP_ID = 30,
-
-	ION_HEAP_ID_RESERVED = 31 
-};
-
-enum ion_fixed_position {
-	NOT_FIXED,
-	FIXED_LOW,
-	FIXED_MIDDLE,
-	FIXED_HIGH,
-};
-
-enum cp_mem_usage {
-	VIDEO_BITSTREAM = 0x1,
-	VIDEO_PIXEL = 0x2,
-	VIDEO_NONPIXEL = 0x3,
-	MAX_USAGE = 0x4,
-	UNKNOWN = 0x7FFFFFFF,
-};
-
-#define ION_SECURE (1 << ION_HEAP_ID_RESERVED)
-
-#define ION_HEAP(bit) (1 << (bit))
-
-#define ION_VMALLOC_HEAP_NAME	"vmalloc"
-#define ION_AUDIO_HEAP_NAME	"audio"
-#define ION_SF_HEAP_NAME	"sf"
-#define ION_MM_HEAP_NAME	"mm"
-#define ION_ROTATOR_HEAP_NAME   "rotator"
-#define ION_CAMERA_HEAP_NAME	"camera_preview"
-#define ION_IOMMU_HEAP_NAME	"iommu"
-#define ION_MFC_HEAP_NAME	"mfc"
-#define ION_WB_HEAP_NAME	"wb"
-#define ION_MM_FIRMWARE_HEAP_NAME	"mm_fw"
-#define ION_QSECOM_HEAP_NAME	"qsecom"
-#define ION_FMEM_HEAP_NAME	"fmem"
-
-#define CACHED          1
-#define UNCACHED        0
-
-#define ION_CACHE_SHIFT 0
-
-#define ION_SET_CACHE(__cache)  ((__cache) << ION_CACHE_SHIFT)
-
-#define ION_IS_CACHED(__flags)	((__flags) & (1 << ION_CACHE_SHIFT))
-
-#define ION_IOMMU_UNMAP_DELAYED 1
+/**
+ * heap flags - the lower 16 bits are used by core ion, the upper 16
+ * bits are reserved for use by the heaps themselves.
+ */
+#define ION_FLAG_CACHED 1		/* mappings of this buffer should be
+					   cached, ion will do cache
+					   maintenance when the buffer is
+					   mapped for dma */
 
 #ifdef __KERNEL__
 #include <linux/err.h>
@@ -182,8 +143,17 @@ int ion_phys(struct ion_client *client, struct ion_handle *handle,
 struct sg_table *ion_sg_table(struct ion_client *client,
 			      struct ion_handle *handle);
 
-void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle,
-			unsigned long flags);
+/**
+ * ion_map_kernel - create mapping for the given handle
+ * @client:	the client
+ * @handle:	handle to map
+ * @flags:	flags for this mapping
+ *
+ * Map the given handle into the kernel and return a kernel address that
+ * can be used to access this address. If no flags are specified, this
+ * will return a non-secure uncached mapping.
+ */
+void *ion_map_kernel(struct ion_client *client, struct ion_handle *handle);
 
 void ion_unmap_kernel(struct ion_client *client, struct ion_handle *handle);
 
@@ -327,28 +297,6 @@ static inline int ion_unsecure_heap(struct ion_device *dev, int heap_id,
 	return -ENODEV;
 }
 
-static inline int msm_ion_secure_heap(int heap_id)
-{
-	return -ENODEV;
-
-}
-
-static inline int msm_ion_unsecure_heap(int heap_id)
-{
-	return -ENODEV;
-}
-
-static inline int msm_ion_secure_heap_2_0(int heap_id, enum cp_mem_usage usage)
-{
-	return -ENODEV;
-}
-
-static inline int msm_ion_unsecure_heap_2_0(int heap_id,
-					enum cp_mem_usage usage)
-{
-	return -ENODEV;
-}
-
 static inline int msm_ion_do_cache_op(struct ion_client *client,
 			struct ion_handle *handle, void *vaddr,
 			unsigned long len, unsigned int cmd)
@@ -408,6 +356,12 @@ struct ion_flag_data {
 
 #define ION_IOC_IMPORT		_IOWR(ION_IOC_MAGIC, 5, int)
 
+/**
+ * DOC: ION_IOC_CUSTOM - call architecture specific ion ioctl
+ *
+ * Takes the argument of the architecture specific ioctl to call and
+ * passes appropriate userdata for that ioctl
+ */
 #define ION_IOC_CUSTOM		_IOWR(ION_IOC_MAGIC, 6, struct ion_custom_data)
 
 #define ION_IOC_CLEAN_CACHES_OLD	_IOWR(ION_IOC_MAGIC, 7, \

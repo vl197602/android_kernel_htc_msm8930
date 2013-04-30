@@ -2,7 +2,7 @@
  * drivers/gpu/ion/ion_priv.h
  *
  * Copyright (C) 2011 Google, Inc.
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -111,6 +111,15 @@ struct ion_heap {
 	const char *name;
 };
 
+/**
+ * struct mem_map_data - represents information about the memory map for a heap
+ * @node:		rb node used to store in the tree of mem_map_data
+ * @addr:		start address of memory region.
+ * @addr:		end address of memory region.
+ * @size:		size of memory region
+ * @client_name:		name of the client who owns this buffer.
+ *
+ */
 struct mem_map_data {
 	struct rb_node node;
 	unsigned long addr;
@@ -159,6 +168,10 @@ ion_phys_addr_t ion_carveout_allocate(struct ion_heap *heap, unsigned long size,
 void ion_carveout_free(struct ion_heap *heap, ion_phys_addr_t addr,
 		       unsigned long size);
 
+#ifdef CONFIG_CMA
+struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *);
+void ion_cma_heap_destroy(struct ion_heap *);
+#endif
 
 struct ion_heap *msm_get_contiguous_heap(void);
 #define ION_CARVEOUT_ALLOCATE_FAIL -1
@@ -178,4 +191,4 @@ void ion_cp_heap_get_base(struct ion_heap *heap, unsigned long *base,
 
 void ion_mem_map_show(struct ion_heap *heap);
 
-#endif 
+#endif /* _ION_PRIV_H */
