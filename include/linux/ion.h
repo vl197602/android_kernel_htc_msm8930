@@ -315,6 +315,23 @@ struct ion_allocation_data {
 	struct ion_handle *handle;
 };
 
+
+struct ion_allocation_data_compat {
+	size_t len;
+	size_t align;
+	unsigned int flags;
+	struct ion_handle *handle;
+};
+/**
+ * struct ion_fd_data - metadata passed to/from userspace for a handle/fd pair
+ * @handle:	a handle
+ * @fd:		a file descriptor representing that handle
+ *
+ * For ION_IOC_SHARE or ION_IOC_MAP userspace populates the handle field with
+ * the handle returned from ion alloc, and the kernel returns the file
+ * descriptor to share or map in the fd field.  For ION_IOC_IMPORT, userspace
+ * provides the file descriptor and the kernel returns the handle.
+ */
 struct ion_fd_data {
 	struct ion_handle *handle;
 	int fd;
@@ -329,18 +346,16 @@ struct ion_custom_data {
 	unsigned long arg;
 };
 
-
 struct ion_flush_data {
-	struct ion_handle *handle;
-	int fd;
-	void *vaddr;
-	unsigned int offset;
-	unsigned int length;
+        struct ion_handle *handle;
+        int fd;
+        void *vaddr;
+        unsigned int offset;
+        unsigned int length;
 };
-
 struct ion_flag_data {
-	struct ion_handle *handle;
-	unsigned long flags;
+        struct ion_handle *handle;
+        unsigned long flags;
 };
 
 #define ION_IOC_MAGIC		'I'
@@ -348,13 +363,29 @@ struct ion_flag_data {
 #define ION_IOC_ALLOC		_IOWR(ION_IOC_MAGIC, 0, \
 				      struct ion_allocation_data)
 
+
+#define ION_IOC_ALLOC_COMPAT		_IOWR(ION_IOC_MAGIC, 0, \
+				      struct ion_allocation_data_compat)
+/**
+ * DOC: ION_IOC_FREE - free memory
+ *
+ * Takes an ion_handle_data struct and frees the handle.
+ */
 #define ION_IOC_FREE		_IOWR(ION_IOC_MAGIC, 1, struct ion_handle_data)
 
 #define ION_IOC_MAP		_IOWR(ION_IOC_MAGIC, 2, struct ion_fd_data)
 
 #define ION_IOC_SHARE		_IOWR(ION_IOC_MAGIC, 4, struct ion_fd_data)
 
-#define ION_IOC_IMPORT		_IOWR(ION_IOC_MAGIC, 5, int)
+/**
+ * DOC: ION_IOC_IMPORT - imports a shared file descriptor
+ *
+ * Takes an ion_fd_data struct with the fd field populated with a valid file
+ * descriptor obtained from ION_IOC_SHARE and returns the struct with the handle
+ * filed set to the corresponding opaque handle.
+ */
+#define ION_IOC_IMPORT		_IOWR(ION_IOC_MAGIC, 5, struct ion_fd_data)
+#define ION_IOC_IMPORT_COMPAT		_IOWR(ION_IOC_MAGIC, 5, int)
 
 /**
  * DOC: ION_IOC_CUSTOM - call architecture specific ion ioctl
@@ -364,26 +395,13 @@ struct ion_flag_data {
  */
 #define ION_IOC_CUSTOM		_IOWR(ION_IOC_MAGIC, 6, struct ion_custom_data)
 
-#define ION_IOC_CLEAN_CACHES_OLD	_IOWR(ION_IOC_MAGIC, 7, \
-						struct ion_flush_data)
-#define ION_IOC_INV_CACHES_OLD	_IOWR(ION_IOC_MAGIC, 8, \
-						struct ion_flush_data)
-#define ION_IOC_CLEAN_INV_CACHES_OLD	_IOWR(ION_IOC_MAGIC, 9, \
-						struct ion_flush_data)
-
-#define ION_IOC_GET_FLAGS_OLD		_IOWR(ION_IOC_MAGIC, 10, \
-						struct ion_flag_data)
-
-#define ION_IOC_MSM_MAGIC 'M'
-
-#define ION_IOC_CLEAN_CACHES	_IOWR(ION_IOC_MSM_MAGIC, 0, \
-						struct ion_flush_data)
-#define ION_IOC_INV_CACHES	_IOWR(ION_IOC_MSM_MAGIC, 1, \
-						struct ion_flush_data)
-#define ION_IOC_CLEAN_INV_CACHES	_IOWR(ION_IOC_MSM_MAGIC, 2, \
-						struct ion_flush_data)
-
-#define ION_IOC_GET_FLAGS		_IOWR(ION_IOC_MSM_MAGIC, 3, \
-						struct ion_flag_data)
+#define ION_IOC_CLEAN_CACHES_COMPAT    _IOWR(ION_IOC_MAGIC, 7, \
+                                                struct ion_flush_data)
+#define ION_IOC_INV_CACHES_COMPAT      _IOWR(ION_IOC_MAGIC, 8, \
+                                                struct ion_flush_data)
+#define ION_IOC_CLEAN_INV_CACHES_COMPAT       _IOWR(ION_IOC_MAGIC, 9, \
+                                                struct ion_flush_data)
+#define ION_IOC_GET_FLAGS_COMPAT               _IOWR(ION_IOC_MAGIC, 10, \
+                                                struct ion_flag_data)
 
 #endif 
