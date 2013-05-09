@@ -1985,10 +1985,46 @@ int32_t msm_sensor_power(struct v4l2_subdev *sd, int on)
 	CDBG("%s: called\n", __func__);
 
 	mutex_lock(s_ctrl->msm_sensor_mutex);
-	if (on)
+	if (on) {
+		if(s_ctrl->sensor_state == MSM_SENSOR_POWER_UP) {
+			pr_err("%s: sensor already in power up state\n", __func__);
+			mutex_unlock(s_ctrl->msm_sensor_mutex);
+			return -EINVAL;
+		}
 		rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
-	else
+		if (rc < 0) {
+			pr_err("%s: %s power_up failed rc = %d\n", __func__,
+				s_ctrl->sensordata->sensor_name, rc);
+			s_ctrl->sensor_state = MSM_SENSOR_POWER_DOWN;
+		} else {
+			if (s_ctrl->func_tbl->sensor_match_id)
+				rc = s_ctrl->func_tbl->sensor_match_id(s_ctrl);
+			else
+				rc = msm_sensor_match_id(s_ctrl);
+			if (rc < 0) {
+				pr_err("%s: %s match_id failed  rc=%d\n",
+					__func__,
+					s_ctrl->sensordata->sensor_name, rc);
+				if (s_ctrl->func_tbl->sensor_power_down(s_ctrl)
+					< 0)
+					pr_err("%s: %s power_down failed\n",
+					__func__,
+					s_ctrl->sensordata->sensor_name);
+				s_ctrl->sensor_state = MSM_SENSOR_POWER_DOWN;
+				goto power_up_failed;
+			}
+			s_ctrl->sensor_state = MSM_SENSOR_POWER_UP;
+		}
+	} else {
+		if(s_ctrl->sensor_state == MSM_SENSOR_POWER_DOWN) {
+			pr_err("%s: sensor already in power down state\n",__func__);
+			mutex_unlock(s_ctrl->msm_sensor_mutex);
+			return -EINVAL;
+		}
 		rc = s_ctrl->func_tbl->sensor_power_down(s_ctrl);
+		s_ctrl->sensor_state = MSM_SENSOR_POWER_DOWN;
+	}
+power_up_failed:
 	mutex_unlock(s_ctrl->msm_sensor_mutex);
 	return rc;
 }
