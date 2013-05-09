@@ -186,14 +186,46 @@ int msm_camera_enable_vreg(struct device *dev, struct camera_vreg_t *cam_vreg,
 			}
 		}
 	} else {
-		for (i = num_vreg-1; i >= 0; i--)
-			regulator_disable(reg_ptr[i]);
+		for (i = num_vreg_seq-1; i >= 0; i--) {
+			if (vreg_seq) {
+				j = vreg_seq[i];
+				if (j >= num_vreg)
+					continue;
+			} else
+				j = i;
+			if (IS_ERR(reg_ptr[j])) {
+				pr_err("%s: %s null regulator\n",
+					__func__, cam_vreg[j].reg_name);
+				return -EINVAL;
+			}
+			regulator_disable(reg_ptr[j]);
+			if (cam_vreg[j].delay > 20)
+				msleep(cam_vreg[j].delay);
+			else if (cam_vreg[j].delay)
+				usleep_range(cam_vreg[j].delay * 1000,
+					(cam_vreg[j].delay * 1000) + 1000);
+		}
 	}
 	return rc;
 disable_vreg:
 	for (i--; i >= 0; i--) {
-		regulator_disable(reg_ptr[i]);
-		goto disable_vreg;
+		if (vreg_seq) {
+			j = vreg_seq[i];
+			if (j >= num_vreg)
+				continue;
+		} else
+			j = i;
+		if (IS_ERR(reg_ptr[j])) {
+			pr_err("%s: %s null regulator\n",
+				__func__, cam_vreg[j].reg_name);
+			return -EINVAL;
+		}
+		regulator_disable(reg_ptr[j]);
+		if (cam_vreg[j].delay > 20)
+			msleep(cam_vreg[j].delay);
+		else if (cam_vreg[j].delay)
+			usleep_range(cam_vreg[j].delay * 1000,
+				(cam_vreg[j].delay * 1000) + 1000);
 	}
 	return rc;
 }
