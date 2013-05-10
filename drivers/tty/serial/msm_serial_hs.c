@@ -156,7 +156,7 @@ enum uart_func_mode {
 
 struct msm_hs_port {
 	struct uart_port uport;
-	unsigned long imr_reg;  /* shadow value of UARTDM_IMR */
+	unsigned int imr_reg;  /* shadow value of UARTDM_IMR */
 	struct clk *clk;
 	struct clk *pclk;
 	struct msm_hs_tx tx;
@@ -458,20 +458,29 @@ static inline void msm_hs_write(struct uart_port *uport, unsigned int offset,
 	writel_relaxed(value, uport->membase + offset);
 }
 
-static void msm_hs_dump_register(struct uart_port *uport)
+/*
+ * This API read and provides UART Core registers information.
+ */
+static void print_uart_registers(struct msm_hs_port *msm_uport)
 {
-	unsigned int mr1,mr2,rfwr,dmen,sr;
-	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
+	struct uart_port *uport = &(msm_uport->uport);
 
-	mr1 = msm_hs_read(uport, UARTDM_MR1_ADDR);
-	mr2 = msm_hs_read(uport, UARTDM_MR2_ADDR);
-	rfwr = msm_hs_read(uport, UARTDM_RFWR_ADDR);
-	dmen= msm_hs_read(uport, UARTDM_DMEN_ADDR);
-	sr = msm_hs_read(uport, UARTDM_SR_ADDR);
+	pr_info("============= UART Registers ================\n");
 
-	DbgBuffer_printLog("%s: clk_state:0x%x clk_req_off_state:0x%x MR1:0x%x MR2:0x%x RFWR:0x%x DMEN:0x%x SR:0x%x\n",
-				__func__, msm_uport->clk_state, msm_uport->clk_req_off_state,
-				mr1,mr2,rfwr,dmen,sr);
+	pr_info("UART_DM_MR1:%x\n", msm_hs_read(uport, UARTDM_MR1_ADDR));
+	pr_info("UART_DM_MR2:%x\n", msm_hs_read(uport, UARTDM_MR2_ADDR));
+	pr_info("UART_DM_IPR:%x\n", msm_hs_read(uport, UARTDM_IPR_ADDR));
+	pr_info("UART_DM_TFWR:%x\n", msm_hs_read(uport, UARTDM_TFWR_ADDR));
+	pr_info("UART_DM_RFWR:%x\n", msm_hs_read(uport, UARTDM_RFWR_ADDR));
+	pr_info("UART_DM_DMEN:%x\n", msm_hs_read(uport, UARTDM_DMEN_ADDR));
+	pr_info("UART_DM_SR:%x\n", msm_hs_read(uport, UARTDM_SR_ADDR));
+	pr_info("UART_DM_ISR:%x\n", msm_hs_read(uport, UARTDM_ISR_ADDR));
+	pr_info("UART_DM_TXFS:%x\n", msm_hs_read(uport, UARTDM_TXFS_ADDR));
+	pr_info("UART_DM_RXFS:%x\n", msm_hs_read(uport, UARTDM_RXFS_ADDR));
+	pr_info("UART_DM_IMR:%x\n", msm_uport->imr_reg);
+
+	pr_info("=============================================\n");
+
 }
 
 static void msm_hs_release_port(struct uart_port *port)
@@ -1014,18 +1023,46 @@ static void msm_hs_set_termios(struct uart_port *uport,
 	unsigned long flags;
 	unsigned int c_cflag = termios->c_cflag;
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
+	bool error_case = false;
 
 	mutex_lock(&msm_uport->clk_mutex);
 	spin_lock_irqsave(&uport->lock, flags);
+
+	msm_uport->termios_in_progress = true;
+
+	/* Disable RxStale Event Mechanism */
+	msm_hs_write(uport, UARTDM_CR_ADDR, STALE_EVENT_DISABLE);
 
 	/* Disable all UART interrupts */
 	msm_hs_write(uport, UARTDM_IMR_ADDR, 0);
 
 	/* Enable RFR so remote UART doesn't send any data. */
 	msm_hs_write(uport, UARTDM_CR_ADDR, RFR_LOW);
-	udelay(5);
 
-	spin_unlock_irqrestore(&uport->lock, flags);
+	/*
+	 * It is quite possible that previous graceful flush is not
+	 * completed and set_termios() request has been received.
+	 * Hence wait here to make sure that it is completed and
+	 * queued one more UART RX CMD with ADM.
+	 */
+	if (msm_uport->rx.dma_in_flight &&
+			msm_uport->rx.flush == FLUSH_DATA_READY) {
+		spin_unlock_irqrestore(&uport->lock, flags);
+		ret = wait_event_timeout(msm_uport->rx.wait,
+			msm_uport->rx.flush == FLUSH_NONE,
+			RX_FLUSH_COMPLETE_TIMEOUT);
+		if (!ret) {
+			pr_err("%s(): timeout for Rx cmd completion\n",
+							__func__);
+			spin_lock_irqsave(&uport->lock, flags);
+			print_uart_registers(msm_uport);
+			spin_unlock_irqrestore(&uport->lock, flags);
+			BUG_ON(1);
+		}
+
+		spin_lock_irqsave(&uport->lock, flags);
+	}
+
 	/*
 	 * Wait for queued Rx CMD to ADM driver to be programmed
 	 * with ADM hardware before going and changing UART baud rate.
@@ -1033,18 +1070,18 @@ static void msm_hs_set_termios(struct uart_port *uport,
 	 * before actually programming ADM hardware with cmd.
 	 */
 	if (msm_uport->rx.dma_in_flight) {
+		spin_unlock_irqrestore(&uport->lock, flags);
 		ret = wait_event_timeout(msm_uport->rx.wait,
-		msm_uport->rx.cmd_exec == true,
-		RX_FLUSH_COMPLETE_TIMEOUT);
+			msm_uport->rx.cmd_exec == true,
+			RX_FLUSH_COMPLETE_TIMEOUT);
 		if (!ret)
 			pr_err("%s(): timeout for rx cmd to be program\n",
 								__func__);
 		else
 			udelay(500);
-	}
 
-	spin_lock_irqsave(&uport->lock, flags);
-	msm_uport->termios_in_progress = true;
+		spin_lock_irqsave(&uport->lock, flags);
+	}
 
 	/* 300 is the minimum baud support by the driver  */
 	bps = uart_get_baud_rate(uport, termios, oldtermios, 200, 4000000);
@@ -1150,10 +1187,21 @@ static void msm_hs_set_termios(struct uart_port *uport,
 		spin_unlock_irqrestore(&uport->lock, flags);
 		ret = wait_event_timeout(msm_uport->rx.wait,
 			msm_uport->rx_discard_flush_issued == false,
-			RX_FLUSH_COMPLETE_TIMEOUT);
-			if (!ret)
+			msecs_to_jiffies(50));
+			if (!ret) {
 				pr_err("%s(): timeout for rx discard flush\n",
 								__func__);
+				spin_lock_irqsave(&uport->lock, flags);
+				print_uart_registers(msm_uport);
+				error_case = true;
+			}
+		if (!error_case)
+			spin_lock_irqsave(&uport->lock, flags);
+	} else {
+		spin_unlock_irqrestore(&uport->lock, flags);
+		pr_err("%s(): called with rx.dma_in_flight:%d\n",
+				__func__, msm_uport->rx.dma_in_flight);
+		print_uart_registers(msm_uport);
 		spin_lock_irqsave(&uport->lock, flags);
 	}
 
@@ -1304,6 +1352,7 @@ static void msm_hs_start_rx_locked(struct uart_port *uport)
 
 	if (msm_uport->rx.dma_in_flight) {
 		pr_err("%s(): RX CMD is already queued.\n", __func__);
+		print_uart_registers(msm_uport);
 		BUG_ON(1);
 	}
 
@@ -1333,7 +1382,14 @@ static void msm_hs_start_rx_locked(struct uart_port *uport)
 	msm_uport->rx.cmd_exec = false;
 	msm_dmov_enqueue_cmd_ext(msm_uport->dma_rx_channel,
 					&msm_uport->rx.xfer);
-
+	/*
+	 * wake up set_termios() process if it is waiting for
+	 * completion of previous UART RX CMD and queueing of
+	 * new UART RX CMD before going ahead with baud rate
+	 * change process.
+	 */
+	if (msm_uport->termios_in_progress)
+		wake_up(&msm_uport->rx.wait);
 }
 
 static void flip_insert_work(struct work_struct *work)
@@ -1951,8 +2007,7 @@ static irqreturn_t msm_hs_isr(int irq, void *dev)
 				/* Discard Flush */
 				msm_dmov_flush(msm_uport->dma_rx_channel, 0);
 			}
->>>>>>> cd715e2... msm_serial_hs: Fix synchronization between ADM and UART Cores
-		}
+		ta}
 	}
 	/* tx ready interrupt */
 	if (isr_status & UARTDM_ISR_TX_READY_BMSK) {
