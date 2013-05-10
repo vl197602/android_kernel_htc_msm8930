@@ -2109,12 +2109,11 @@ int msm_ipc_router_send_to(struct msm_ipc_port *src,
 		return ret;
 	}
 
-	
 	rport_ptr = msm_ipc_router_lookup_remote_port(dst_node_id,
 						      dst_port_id);
 	if (!rport_ptr) {
-		pr_err("%s: Could not create remote port\n", __func__);
-		return -ENOMEM;
+		pr_err("%s: Remote port not found\n", __func__);
+		return -ENODEV;
 	}
 
 	pkt = create_pkt(data);
