@@ -789,6 +789,64 @@ static int __devexit pm8xxx_ccadc_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int pm8xxx_ccadc_suspend(struct device *dev)
+{
+	struct pm8xxx_ccadc_chip *chip = dev_get_drvdata(dev);
+
+	cancel_delayed_work_sync(&chip->calib_ccadc_work);
+
+	return 0;
+}
+
+#define CCADC_CALIB_TEMP_THRESH 20
+static int pm8xxx_ccadc_resume(struct device *dev)
+{
+	int rc, batt_temp, delta_temp;
+	unsigned long current_time_sec;
+	unsigned long time_since_last_calib;
+
+	rc = get_batt_temp(the_chip, &batt_temp);
+	if (rc) {
+		pr_err("unable to get batt_temp: %d\n", rc);
+		return 0;
+	}
+	rc = get_current_time(&current_time_sec);
+	if (rc) {
+		pr_err("unable to get current time: %d\n", rc);
+		return 0;
+	}
+
+	if (the_chip->periodic_wakeup) {
+		pm8xxx_calib_ccadc_quick();
+		return 0;
+	}
+
+	if (current_time_sec > the_chip->last_calib_time) {
+		time_since_last_calib = current_time_sec -
+					the_chip->last_calib_time;
+		delta_temp = abs(batt_temp - the_chip->last_calib_temp);
+		pr_debug("time since last calib: %lu, delta_temp = %d\n",
+					time_since_last_calib, delta_temp);
+		if (time_since_last_calib >= the_chip->calib_delay_ms/1000
+				|| delta_temp > CCADC_CALIB_TEMP_THRESH) {
+			the_chip->last_calib_time = current_time_sec;
+			the_chip->last_calib_temp = batt_temp;
+			schedule_delayed_work(&the_chip->calib_ccadc_work, 0);
+		} else {
+			schedule_delayed_work(&the_chip->calib_ccadc_work,
+				msecs_to_jiffies(the_chip->calib_delay_ms -
+					(time_since_last_calib * 1000)));
+		}
+	}
+
+	return 0;
+}
+
+static const struct dev_pm_ops pm8xxx_ccadc_pm_ops = {
+	.suspend	= pm8xxx_ccadc_suspend,
+	.resume		= pm8xxx_ccadc_resume,
+};
+
 static struct platform_driver pm8xxx_ccadc_driver = {
 	.probe	= pm8xxx_ccadc_probe,
 	.remove	= __devexit_p(pm8xxx_ccadc_remove),
