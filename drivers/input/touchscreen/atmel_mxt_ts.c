@@ -1034,8 +1034,8 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 		/* Wait for reset */
 		msleep(MXT_FWRESET_TIME);
 
-		kfree(data->object_table);
-		data->object_table = NULL;
+	mutex_unlock(&input_dev->mutex);
+	mxt_release_all(data);
 
 		mxt_initialize(data);
 	}
@@ -1045,6 +1045,20 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 	error = mxt_make_highchg(data);
 	if (error)
 		return error;
+	}
+	mxt_write_object(data, MXT_GEN_COMMAND_T6,
+			MXT_COMMAND_RESET, 1);
+	msleep(MXT_RESET_TIME);
+	mutex_lock(&input_dev->mutex);
+
+	if (input_dev->users) {
+		error = mxt_start(data);
+		if (error < 0) {
+			dev_err(dev, "mxt_start failed in resume\n");
+			mutex_unlock(&input_dev->mutex);
+			return error;
+		}
+	}
 
 	return count;
 }
