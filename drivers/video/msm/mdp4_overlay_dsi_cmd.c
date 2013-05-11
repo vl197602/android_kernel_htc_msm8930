@@ -57,7 +57,6 @@ static struct vsycn_ctrl {
 	uint32 rdptr_intr_tot;
 	uint32 rdptr_sirq_tot;
 	atomic_t suspend;
-	int wait_vsync_cnt;
 	int blt_change;
 	int blt_free;
 	int blt_end;
@@ -65,7 +64,6 @@ static struct vsycn_ctrl {
 	struct mutex update_lock;
 	struct completion ov_comp;
 	struct completion dmap_comp;
-	struct completion vsync_comp;
 	spinlock_t spin_lock;
 	struct msm_fb_data_type *mfd;
 	struct mdp4_overlay_pipe *base_pipe;
@@ -77,8 +75,7 @@ static struct vsycn_ctrl {
 	ktime_t vsync_time;
 	struct work_struct vsync_work;
 	struct work_struct clk_work;
-	
-	int temp_cnt;
+	wait_queue_head_t wait_queue;
 } vsync_ctrl_db[MAX_CONTROLLER];
 
 static void vsync_irq_enable(int intr, int term)
@@ -451,8 +448,7 @@ void mdp4_dsi_cmd_wait4vsync(int cndx, long long *vtime)
 {
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
-	unsigned long flags;
-	int timeoutResult = 0;
+	ktime_t timestamp;
 
 	if (cndx >= MAX_CONTROLLER) {
 		pr_err("%s: out or range: cndx=%d\n", __func__, cndx);
@@ -467,17 +463,11 @@ void mdp4_dsi_cmd_wait4vsync(int cndx, long long *vtime)
 		return;
 	}
 
-	spin_lock_irqsave(&vctrl->spin_lock, flags);
-	if (vctrl->wait_vsync_cnt == 0)
-		INIT_COMPLETION(vctrl->vsync_comp);
-	vctrl->wait_vsync_cnt++;
-	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
-
-	timeoutResult = wait_for_completion_timeout(&vctrl->vsync_comp, HZ/10);
-	if (!timeoutResult) {
-		PR_DISP_WARN("%s: vsync timeout, clk_enabled %d, expire_tick %d, vctrl->wait_vsync_cnt %d\n",
-		__func__, vctrl->clk_enabled, vctrl->expire_tick, vctrl->wait_vsync_cnt);
-	}
+	timestamp = vctrl->vsync_time;
+	wait_event_interruptible_timeout(vctrl->wait_queue,
+			!ktime_equal(timestamp, vctrl->vsync_time) &&
+			vctrl->vsync_enabled,
+			msecs_to_jiffies(VSYNC_PERIOD * 8));
 
 	mdp4_stat.wait4vsync0++;
 
@@ -529,9 +519,8 @@ static void primary_rdptr_isr(int cndx)
 	vctrl->rdptr_intr_tot++;
 	vctrl->vsync_time = ktime_get();
 
-	spin_lock(&vctrl->spin_lock);
-	complete_all(&vctrl->vsync_comp);
-	vctrl->wait_vsync_cnt = 0;
+	vctrl->last_vsync_ms = cur_vsync_ms;
+	wake_up_interruptible_all(&vctrl->wait_queue);
 
 	if (vctrl->expire_tick) {
 		vctrl->expire_tick--;
@@ -671,32 +660,21 @@ ssize_t mdp4_dsi_cmd_show_event(struct device *dev,
 	int cndx;
 	struct vsycn_ctrl *vctrl;
 	ssize_t ret = 0;
-	unsigned long flags;
-	int timeoutResult = 0;
+	u64 vsync_tick;
+	ktime_t timestamp;
 
 	cndx = 0;
 	vctrl = &vsync_ctrl_db[0];
+	timestamp = vctrl->vsync_time;
 
-	pr_debug("%s:+ VSYNC_EVENT\n", __func__);
+	ret = wait_event_interruptible(vctrl->wait_queue,
+			!ktime_equal(timestamp, vctrl->vsync_time) &&
+			vctrl->vsync_enabled);
+	if (ret == -ERESTARTSYS)
+		return ret;
 
-	if (atomic_read(&vctrl->suspend) > 0)
-		return 0;
-
-	spin_lock_irqsave(&vctrl->spin_lock, flags);
-	if (vctrl->wait_vsync_cnt == 0)
-		INIT_COMPLETION(vctrl->vsync_comp);
-	vctrl->wait_vsync_cnt++;
-	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
-
-	timeoutResult = wait_for_completion_timeout(&vctrl->vsync_comp, HZ/10);
-        if (!timeoutResult) {
-                PR_DISP_WARN("%s: vsync timeout, clk_enabled %d, expire_tick %d, vctrl->wait_vsync_cnt %d\n",
-                __func__, vctrl->clk_enabled, vctrl->expire_tick, vctrl->wait_vsync_cnt);
-        }
-
-
-	ret = snprintf(buf, PAGE_SIZE, "VSYNC=%llu",
-			ktime_to_ns(vctrl->vsync_time));
+	vsync_tick = ktime_to_ns(vctrl->vsync_time);
+	ret = scnprintf(buf, PAGE_SIZE, "VSYNC=%llu", vsync_tick);
 	buf[strlen(buf) + 1] = '\0';
 	pr_debug("%s:-\n", __func__);
 	return ret;
@@ -724,8 +702,8 @@ void mdp4_dsi_rdptr_init(int cndx)
 	pr_info("[DISP]%s update_lock init done\n",__func__);
 	init_completion(&vctrl->ov_comp);
 	init_completion(&vctrl->dmap_comp);
-	init_completion(&vctrl->vsync_comp);
 	spin_lock_init(&vctrl->spin_lock);
+	init_waitqueue_head(&vctrl->wait_queue);
 	atomic_set(&vctrl->suspend, 1);
 	INIT_WORK(&vctrl->clk_work, clk_ctrl_work);
 }
@@ -1075,7 +1053,6 @@ int mdp4_dsi_cmd_off(struct platform_device *pdev)
 	}
 
 	mutex_lock(&vctrl->update_lock);
-	atomic_set(&vctrl->suspend, 1);
 
 	pr_debug("%s: clk=%d pan=%d\n", __func__,
 			vctrl->clk_enabled, vctrl->pan_display);
