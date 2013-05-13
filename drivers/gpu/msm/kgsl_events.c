@@ -202,7 +202,8 @@ static inline int _mark_next_event(struct kgsl_device *device,
 		event = list_first_entry(head, struct kgsl_event, list);
 
 
-		return device->ftbl->next_event(device, event);
+		if (device->ftbl->next_event)
+			return device->ftbl->next_event(device, event);
 	}
 
 	return 0;
