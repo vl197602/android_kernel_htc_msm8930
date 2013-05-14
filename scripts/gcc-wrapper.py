@@ -64,7 +64,6 @@ allowed_warnings = set([
    "inet_hashtables.h:356",
    "xc4000.c:1049",
    "xc4000.c:1063",	
->>>>>>> 72ea7c5... treat these errors as warnings.
  ])
 
 # Capture the name of the object file, can find it.

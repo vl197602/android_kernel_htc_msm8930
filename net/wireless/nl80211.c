@@ -1034,6 +1034,11 @@ static int nl80211_send_wiphy(struct sk_buff *msg, u32 pid, u32 seq, int flags,
 			sizeof(*dev->wiphy.ht_capa_mod_mask),
 			dev->wiphy.ht_capa_mod_mask);
 
+	if (dev->wiphy.flags & WIPHY_FLAG_HAVE_AP_SME &&
+	    dev->wiphy.max_acl_mac_addrs)
+		NLA_PUT_U32(msg, NL80211_ATTR_MAC_ACL_MAX,
+			    dev->wiphy.max_acl_mac_addrs);
+
 	return genlmsg_end(msg, hdr);
 
  nla_put_failure:
@@ -2042,159 +2047,97 @@ static int nl80211_del_key(struct sk_buff *skb, struct genl_info *info)
 	return err;
 }
 
-#ifdef CONFIG_BCMDHD_FW_PATH
-static int nl80211_addset_beacon(struct sk_buff *skb, struct genl_info *info)
+/* This function returns an error or the number of nested attributes */
+static int validate_acl_mac_addrs(struct nlattr *nl_attr)
 {
-        int (*call)(struct wiphy *wiphy, struct net_device *dev,
-		    struct beacon_parameters *info);
-	struct cfg80211_registered_device *rdev = info->user_ptr[0];
-	struct net_device *dev = info->user_ptr[1];
-	struct wireless_dev *wdev = dev->ieee80211_ptr;
-	struct beacon_parameters params;
-	int haveinfo = 0, err;
+	struct nlattr *attr;
+	int n_entries = 0, tmp;
 
-	if (!is_valid_ie_attr(info->attrs[NL80211_ATTR_BEACON_TAIL]) ||
-	    !is_valid_ie_attr(info->attrs[NL80211_ATTR_IE]) ||
-	    !is_valid_ie_attr(info->attrs[NL80211_ATTR_IE_PROBE_RESP]) ||
-	    !is_valid_ie_attr(info->attrs[NL80211_ATTR_IE_ASSOC_RESP]))
-		return -EINVAL;
-
-	if (dev->ieee80211_ptr->iftype != NL80211_IFTYPE_AP &&
-	    dev->ieee80211_ptr->iftype != NL80211_IFTYPE_P2P_GO)
-		return -EOPNOTSUPP;
-
-	memset(&params, 0, sizeof(params));
-
-	switch (info->genlhdr->cmd) {
-	case NL80211_CMD_NEW_BEACON:
-		
-		if (!info->attrs[NL80211_ATTR_BEACON_INTERVAL] ||
-		    !info->attrs[NL80211_ATTR_DTIM_PERIOD] ||
-		    !info->attrs[NL80211_ATTR_BEACON_HEAD])
+	nla_for_each_nested(attr, nl_attr, tmp) {
+		if (nla_len(attr) != ETH_ALEN)
 			return -EINVAL;
 
-		params.interval =
-			nla_get_u32(info->attrs[NL80211_ATTR_BEACON_INTERVAL]);
-		params.dtim_period =
-			nla_get_u32(info->attrs[NL80211_ATTR_DTIM_PERIOD]);
-
-		err = cfg80211_validate_beacon_int(rdev, params.interval);
-		if (err)
-			return err;
-
-		if (info->attrs[NL80211_ATTR_SSID]) {
-			params.ssid = nla_data(info->attrs[NL80211_ATTR_SSID]);
-			params.ssid_len =
-				nla_len(info->attrs[NL80211_ATTR_SSID]);
-			if (params.ssid_len == 0 ||
-			    params.ssid_len > IEEE80211_MAX_SSID_LEN)
-				return -EINVAL;
-		}
-
-		if (info->attrs[NL80211_ATTR_HIDDEN_SSID]) {
-			params.hidden_ssid = nla_get_u32(
-				info->attrs[NL80211_ATTR_HIDDEN_SSID]);
-			if (params.hidden_ssid !=
-			    NL80211_HIDDEN_SSID_NOT_IN_USE &&
-			    params.hidden_ssid !=
-			    NL80211_HIDDEN_SSID_ZERO_LEN &&
-			    params.hidden_ssid !=
-			    NL80211_HIDDEN_SSID_ZERO_CONTENTS)
-				return -EINVAL;
-		}
-
-		params.privacy = !!info->attrs[NL80211_ATTR_PRIVACY];
-
-		if (info->attrs[NL80211_ATTR_AUTH_TYPE]) {
-			params.auth_type = nla_get_u32(
-				info->attrs[NL80211_ATTR_AUTH_TYPE]);
-			if (!nl80211_valid_auth_type(params.auth_type))
-				return -EINVAL;
-		} else
-			params.auth_type = NL80211_AUTHTYPE_AUTOMATIC;
-
-		err = nl80211_crypto_settings(rdev, info, &params.crypto,
-					      NL80211_MAX_NR_CIPHER_SUITES);
-		if (err)
-			return err;
-
-		call = rdev->ops->add_beacon;
-		break;
-	case NL80211_CMD_SET_BEACON:
-		call = rdev->ops->set_beacon;
-		break;
-	default:
-		WARN_ON(1);
-		return -EOPNOTSUPP;
+		n_entries++;
 	}
 
-	if (!call)
-		return -EOPNOTSUPP;
-
-	if (info->attrs[NL80211_ATTR_BEACON_HEAD]) {
-		params.head = nla_data(info->attrs[NL80211_ATTR_BEACON_HEAD]);
-		params.head_len =
-		    nla_len(info->attrs[NL80211_ATTR_BEACON_HEAD]);
-		haveinfo = 1;
-	}
-
-	if (info->attrs[NL80211_ATTR_BEACON_TAIL]) {
-		params.tail = nla_data(info->attrs[NL80211_ATTR_BEACON_TAIL]);
-		params.tail_len =
-		    nla_len(info->attrs[NL80211_ATTR_BEACON_TAIL]);
-		haveinfo = 1;
-	}
-
-	if (!haveinfo)
-		return -EINVAL;
-
-	if (info->attrs[NL80211_ATTR_IE]) {
-		params.beacon_ies = nla_data(info->attrs[NL80211_ATTR_IE]);
-		params.beacon_ies_len = nla_len(info->attrs[NL80211_ATTR_IE]);
-	}
-
-	if (info->attrs[NL80211_ATTR_IE_PROBE_RESP]) {
-		params.proberesp_ies =
-			nla_data(info->attrs[NL80211_ATTR_IE_PROBE_RESP]);
-		params.proberesp_ies_len =
-			nla_len(info->attrs[NL80211_ATTR_IE_PROBE_RESP]);
-	}
-
-	if (info->attrs[NL80211_ATTR_IE_ASSOC_RESP]) {
-		params.assocresp_ies =
-			nla_data(info->attrs[NL80211_ATTR_IE_ASSOC_RESP]);
-		params.assocresp_ies_len =
-			nla_len(info->attrs[NL80211_ATTR_IE_ASSOC_RESP]);
-	}
-
-	err = call(&rdev->wiphy, dev, &params);
-	if (!err && params.interval)
-		wdev->beacon_interval = params.interval;
-	return err;
+	return n_entries;
 }
 
-static int nl80211_del_beacon(struct sk_buff *skb, struct genl_info *info)
+/*
+ * This function parses ACL information and allocates memory for ACL data.
+ * On successful return, the calling function is responsible to free the
+ * ACL buffer returned by this function.
+ */
+static struct cfg80211_acl_data *parse_acl_data(struct wiphy *wiphy,
+						struct genl_info *info)
+{
+	enum nl80211_acl_policy acl_policy;
+	struct nlattr *attr;
+	struct cfg80211_acl_data *acl;
+	int i = 0, n_entries, tmp;
+
+	if (!wiphy->max_acl_mac_addrs)
+		return ERR_PTR(-EOPNOTSUPP);
+
+	if (!info->attrs[NL80211_ATTR_ACL_POLICY])
+		return ERR_PTR(-EINVAL);
+
+	acl_policy = nla_get_u32(info->attrs[NL80211_ATTR_ACL_POLICY]);
+	if (acl_policy != NL80211_ACL_POLICY_ACCEPT_UNLESS_LISTED &&
+	    acl_policy != NL80211_ACL_POLICY_DENY_UNLESS_LISTED)
+		return ERR_PTR(-EINVAL);
+
+	if (!info->attrs[NL80211_ATTR_MAC_ADDRS])
+		return ERR_PTR(-EINVAL);
+
+	n_entries = validate_acl_mac_addrs(info->attrs[NL80211_ATTR_MAC_ADDRS]);
+	if (n_entries < 0)
+		return ERR_PTR(n_entries);
+
+	if (n_entries > wiphy->max_acl_mac_addrs)
+		return ERR_PTR(-ENOTSUPP);
+
+	acl = kzalloc(sizeof(*acl) + (sizeof(struct mac_address) * n_entries),
+		      GFP_KERNEL);
+	if (!acl)
+		return ERR_PTR(-ENOMEM);
+
+	nla_for_each_nested(attr, info->attrs[NL80211_ATTR_MAC_ADDRS], tmp) {
+		memcpy(acl->mac_addrs[i].addr, nla_data(attr), ETH_ALEN);
+		i++;
+	}
+
+	acl->n_acl_entries = n_entries;
+	acl->acl_policy = acl_policy;
+
+	return acl;
+}
+
+static int nl80211_set_mac_acl(struct sk_buff *skb, struct genl_info *info)
 {
 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
 	struct net_device *dev = info->user_ptr[1];
-	struct wireless_dev *wdev = dev->ieee80211_ptr;
+	struct cfg80211_acl_data *acl;
 	int err;
-
-	if (!rdev->ops->del_beacon)
-		return -EOPNOTSUPP;
 
 	if (dev->ieee80211_ptr->iftype != NL80211_IFTYPE_AP &&
 	    dev->ieee80211_ptr->iftype != NL80211_IFTYPE_P2P_GO)
 		return -EOPNOTSUPP;
 
-	err = rdev->ops->del_beacon(&rdev->wiphy, dev);
-	if (!err)
-		wdev->beacon_interval = 0;
+	if (!dev->ieee80211_ptr->beacon_interval)
+		return -EINVAL;
+
+	acl = parse_acl_data(&rdev->wiphy, info);
+	if (IS_ERR(acl))
+		return PTR_ERR(acl);
+
+	err = rdev->ops->set_mac_acl(&rdev->wiphy, dev, acl);
+
+	kfree(acl);
+
 	return err;
 }
-#endif
 
-#ifndef CONFIG_BCMDHD_FW_PATH
 static int nl80211_parse_beacon(struct genl_info *info,
 				struct cfg80211_beacon_data *bcn)
 {
@@ -2334,9 +2277,18 @@ static int nl80211_start_ap(struct sk_buff *skb, struct genl_info *info)
 			info->attrs[NL80211_ATTR_INACTIVITY_TIMEOUT]);
 	}
 
+	if (info->attrs[NL80211_ATTR_ACL_POLICY]) {
+		params.acl = parse_acl_data(&rdev->wiphy, info);
+		if (IS_ERR(params.acl))
+			return PTR_ERR(params.acl);
+	}
+
 	err = rdev->ops->start_ap(&rdev->wiphy, dev, &params);
 	if (!err)
 		wdev->beacon_interval = params.beacon_interval;
+
+	kfree(params.acl);
+
 	return err;
 }
 
@@ -7012,6 +6964,22 @@ static struct genl_ops nl80211_ops[] = {
 		.policy = nl80211_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = NL80211_FLAG_NEED_NETDEV |
+				  NL80211_FLAG_NEED_RTNL,
+	},
+	{
+		.cmd = NL80211_CMD_SET_MAC_ACL,
+		.doit = nl80211_set_mac_acl,
+		.policy = nl80211_policy,
+		.flags = GENL_ADMIN_PERM,
+		.internal_flags = NL80211_FLAG_NEED_NETDEV |
+				  NL80211_FLAG_NEED_RTNL,
+	},
+	{
+		.cmd = NL80211_CMD_UPDATE_FT_IES,
+		.doit = nl80211_update_ft_ies,
+		.policy = nl80211_policy,
+		.flags = GENL_ADMIN_PERM,
+		.internal_flags = NL80211_FLAG_NEED_NETDEV_UP |
 				  NL80211_FLAG_NEED_RTNL,
 	},
 

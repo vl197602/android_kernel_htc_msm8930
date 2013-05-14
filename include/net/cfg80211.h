@@ -170,6 +170,45 @@ struct cfg80211_beacon_data {
 	size_t probe_resp_len;
 };
 
+struct mac_address {
+	u8 addr[ETH_ALEN];
+};
+
+/**
+ * struct cfg80211_acl_data - Access control list data
+ *
+ * @acl_policy: ACL policy to be applied on the station's
+ *	entry specified by mac_addr
+ * @n_acl_entries: Number of MAC address entries passed
+ * @mac_addrs: List of MAC addresses of stations to be used for ACL
+ */
+struct cfg80211_acl_data {
+	enum nl80211_acl_policy acl_policy;
+	int n_acl_entries;
+
+	/* Keep it last */
+	struct mac_address mac_addrs[];
+};
+
+/**
+ * struct cfg80211_ap_settings - AP configuration
+ *
+ * Used to configure an AP interface.
+ *
+ * @beacon: beacon data
+ * @beacon_interval: beacon interval
+ * @dtim_period: DTIM period
+ * @ssid: SSID to be used in the BSS (note: may be %NULL if not provided from
+ *	user space)
+ * @ssid_len: length of @ssid
+ * @hidden_ssid: whether to hide the SSID in Beacon/Probe Response frames
+ * @crypto: crypto settings
+ * @privacy: the BSS uses privacy
+ * @auth_type: Authentication type (algorithm)
+ * @inactivity_timeout: time in seconds to determine station's inactivity.
+ * @acl: ACL configuration used by the drivers which has support for
+ *	MAC address based access control
+ */
 struct cfg80211_ap_settings {
 	struct cfg80211_beacon_data beacon;
 
@@ -181,6 +220,7 @@ struct cfg80211_ap_settings {
 	bool privacy;
 	enum nl80211_auth_type auth_type;
 	int inactivity_timeout;
+	const struct cfg80211_acl_data *acl;
 };
 
 enum plink_actions {
@@ -575,6 +615,213 @@ struct cfg80211_gtk_rekey_data {
 	u8 replay_ctr[NL80211_REPLAY_CTR_LEN];
 };
 
+/**
+ * struct cfg80211_update_ft_ies_params - FT IE Information
+ *
+ * This structure provides information needed to update the fast transition IE
+ *
+ * @md: The Mobility Domain ID, 2 Octet value
+ * @ie: Fast Transition IEs
+ * @ie_len: Length of ft_ie in octets
+ */
+struct cfg80211_update_ft_ies_params {
+	u16 md;
+	const u8 *ie;
+	size_t ie_len;
+};
+
+/**
+ * struct cfg80211_ops - backend description for wireless configuration
+ *
+ * This struct is registered by fullmac card drivers and/or wireless stacks
+ * in order to handle configuration requests on their interfaces.
+ *
+ * All callbacks except where otherwise noted should return 0
+ * on success or a negative error code.
+ *
+ * All operations are currently invoked under rtnl for consistency with the
+ * wireless extensions but this is subject to reevaluation as soon as this
+ * code is used more widely and we have a first user without wext.
+ *
+ * @suspend: wiphy device needs to be suspended. The variable @wow will
+ *	be %NULL or contain the enabled Wake-on-Wireless triggers that are
+ *	configured for the device.
+ * @resume: wiphy device needs to be resumed
+ *
+ * @add_virtual_intf: create a new virtual interface with the given name,
+ *	must set the struct wireless_dev's iftype. Beware: You must create
+ *	the new netdev in the wiphy's network namespace! Returns the netdev,
+ *	or an ERR_PTR.
+ *
+ * @del_virtual_intf: remove the virtual interface determined by ifindex.
+ *
+ * @change_virtual_intf: change type/configuration of virtual interface,
+ *	keep the struct wireless_dev's iftype updated.
+ *
+ * @add_key: add a key with the given parameters. @mac_addr will be %NULL
+ *	when adding a group key.
+ *
+ * @get_key: get information about the key with the given parameters.
+ *	@mac_addr will be %NULL when requesting information for a group
+ *	key. All pointers given to the @callback function need not be valid
+ *	after it returns. This function should return an error if it is
+ *	not possible to retrieve the key, -ENOENT if it doesn't exist.
+ *
+ * @del_key: remove a key given the @mac_addr (%NULL for a group key)
+ *	and @key_index, return -ENOENT if the key doesn't exist.
+ *
+ * @set_default_key: set the default key on an interface
+ *
+ * @set_default_mgmt_key: set the default management frame key on an interface
+ *
+ * @set_rekey_data: give the data necessary for GTK rekeying to the driver
+ *
+ * @start_ap: Start acting in AP mode defined by the parameters.
+ * @change_beacon: Change the beacon parameters for an access point mode
+ *	interface. This should reject the call when AP mode wasn't started.
+ * @stop_ap: Stop being an AP, including stopping beaconing.
+ *
+ * @add_station: Add a new station.
+ * @del_station: Remove a station; @mac may be NULL to remove all stations.
+ * @change_station: Modify a given station. Note that flags changes are not much
+ *	validated in cfg80211, in particular the auth/assoc/authorized flags
+ *	might come to the driver in invalid combinations -- make sure to check
+ *	them, also against the existing state! Also, supported_rates changes are
+ *	not checked in station mode -- drivers need to reject (or ignore) them
+ *	for anything but TDLS peers.
+ * @get_station: get station information for the station identified by @mac
+ * @dump_station: dump station callback -- resume dump at index @idx
+ *
+ * @add_mpath: add a fixed mesh path
+ * @del_mpath: delete a given mesh path
+ * @change_mpath: change a given mesh path
+ * @get_mpath: get a mesh path for the given parameters
+ * @dump_mpath: dump mesh path callback -- resume dump at index @idx
+ * @join_mesh: join the mesh network with the specified parameters
+ * @leave_mesh: leave the current mesh network
+ *
+ * @get_mesh_config: Get the current mesh configuration
+ *
+ * @update_mesh_config: Update mesh parameters on a running mesh.
+ *	The mask is a bitfield which tells us which parameters to
+ *	set, and which to leave alone.
+ *
+ * @change_bss: Modify parameters for a given BSS.
+ *
+ * @set_txq_params: Set TX queue parameters
+ *
+ * @set_channel: Set channel for a given wireless interface. Some devices
+ *	may support multi-channel operation (by channel hopping) so cfg80211
+ *	doesn't verify much. Note, however, that the passed netdev may be
+ *	%NULL as well if the user requested changing the channel for the
+ *	device itself, or for a monitor interface.
+ * @get_channel: Get the current operating channel, should return %NULL if
+ *	there's no single defined operating channel if for example the
+ *	device implements channel hopping for multi-channel virtual interfaces.
+ *
+ * @scan: Request to do a scan. If returning zero, the scan request is given
+ *	the driver, and will be valid until passed to cfg80211_scan_done().
+ *	For scan results, call cfg80211_inform_bss(); you can call this outside
+ *	the scan/scan_done bracket too.
+ *
+ * @auth: Request to authenticate with the specified peer
+ * @assoc: Request to (re)associate with the specified peer
+ * @deauth: Request to deauthenticate from the specified peer
+ * @disassoc: Request to disassociate from the specified peer
+ *
+ * @connect: Connect to the ESS with the specified parameters. When connected,
+ *	call cfg80211_connect_result() with status code %WLAN_STATUS_SUCCESS.
+ *	If the connection fails for some reason, call cfg80211_connect_result()
+ *	with the status from the AP.
+ * @disconnect: Disconnect from the BSS/ESS.
+ *
+ * @join_ibss: Join the specified IBSS (or create if necessary). Once done, call
+ *	cfg80211_ibss_joined(), also call that function when changing BSSID due
+ *	to a merge.
+ * @leave_ibss: Leave the IBSS.
+ *
+ * @set_wiphy_params: Notify that wiphy parameters have changed;
+ *	@changed bitfield (see &enum wiphy_params_flags) describes which values
+ *	have changed. The actual parameter values are available in
+ *	struct wiphy. If returning an error, no value should be changed.
+ *
+ * @set_tx_power: set the transmit power according to the parameters,
+ *	the power passed is in mBm, to get dBm use MBM_TO_DBM().
+ * @get_tx_power: store the current TX power into the dbm variable;
+ *	return 0 if successful
+ *
+ * @set_wds_peer: set the WDS peer for a WDS interface
+ *
+ * @rfkill_poll: polls the hw rfkill line, use cfg80211 reporting
+ *	functions to adjust rfkill hw state
+ *
+ * @dump_survey: get site survey information.
+ *
+ * @remain_on_channel: Request the driver to remain awake on the specified
+ *	channel for the specified duration to complete an off-channel
+ *	operation (e.g., public action frame exchange). When the driver is
+ *	ready on the requested channel, it must indicate this with an event
+ *	notification by calling cfg80211_ready_on_channel().
+ * @cancel_remain_on_channel: Cancel an on-going remain-on-channel operation.
+ *	This allows the operation to be terminated prior to timeout based on
+ *	the duration value.
+ * @mgmt_tx: Transmit a management frame.
+ * @mgmt_tx_cancel_wait: Cancel the wait time from transmitting a management
+ *	frame on another channel
+ *
+ * @testmode_cmd: run a test mode command
+ * @testmode_dump: Implement a test mode dump. The cb->args[2] and up may be
+ *	used by the function, but 0 and 1 must not be touched. Additionally,
+ *	return error codes other than -ENOBUFS and -ENOENT will terminate the
+ *	dump and return to userspace with an error, so be careful. If any data
+ *	was passed in from userspace then the data/len arguments will be present
+ *	and point to the data contained in %NL80211_ATTR_TESTDATA.
+ *
+ * @set_bitrate_mask: set the bitrate mask configuration
+ *
+ * @set_pmksa: Cache a PMKID for a BSSID. This is mostly useful for fullmac
+ *	devices running firmwares capable of generating the (re) association
+ *	RSN IE. It allows for faster roaming between WPA2 BSSIDs.
+ * @del_pmksa: Delete a cached PMKID.
+ * @flush_pmksa: Flush all cached PMKIDs.
+ * @set_power_mgmt: Configure WLAN power management. A timeout value of -1
+ *	allows the driver to adjust the dynamic ps timeout value.
+ * @set_cqm_rssi_config: Configure connection quality monitor RSSI threshold.
+ * @sched_scan_start: Tell the driver to start a scheduled scan.
+ * @sched_scan_stop: Tell the driver to stop an ongoing scheduled
+ *	scan.  The driver_initiated flag specifies whether the driver
+ *	itself has informed that the scan has stopped.
+ *
+ * @mgmt_frame_register: Notify driver that a management frame type was
+ *	registered. Note that this callback may not sleep, and cannot run
+ *	concurrently with itself.
+ *
+ * @set_antenna: Set antenna configuration (tx_ant, rx_ant) on the device.
+ *	Parameters are bitmaps of allowed antennas to use for TX/RX. Drivers may
+ *	reject TX/RX mask combinations they cannot support by returning -EINVAL
+ *	(also see nl80211.h @NL80211_ATTR_WIPHY_ANTENNA_TX).
+ *
+ * @get_antenna: Get current antenna configuration from device (tx_ant, rx_ant).
+ *
+ * @set_ringparam: Set tx and rx ring sizes.
+ *
+ * @get_ringparam: Get tx and rx ring current and maximum sizes.
+ *
+ * @tdls_mgmt: Transmit a TDLS management frame.
+ * @tdls_oper: Perform a high-level TDLS operation (e.g. TDLS link setup).
+ *
+ * @probe_client: probe an associated client, must return a cookie that it
+ *	later passes to cfg80211_probe_status().
+ *
+ * @set_noack_map: Set the NoAck Map for the TIDs.
+ * @set_mac_acl: Sets MAC address control list in AP and P2P GO mode.
+ *	Parameters include ACL policy, an array of MAC address of stations
+ *	and the number of MAC addresses. If there is already a list in driver
+ *	this new list replaces the existing one. Driver has to clear its ACL
+ *	when number of MAC addresses entries is passed as 0. Drivers which
+ *	advertise the support for MAC based ACL have to implement this callback.
+ *
+ */
 struct cfg80211_ops {
 	int	(*suspend)(struct wiphy *wiphy, struct cfg80211_wowlan *wow);
 	int	(*resume)(struct wiphy *wiphy);
@@ -778,6 +1025,11 @@ struct cfg80211_ops {
 				  u16 noack_map);
 
 	struct ieee80211_channel *(*get_channel)(struct wiphy *wiphy);
+	int	(*update_ft_ies)(struct wiphy *wiphy, struct net_device *dev,
+				 struct cfg80211_update_ft_ies_params *ftie);
+
+	int (*set_mac_acl)(struct wiphy *wiphy, struct net_device *dev,
+			   const struct cfg80211_acl_data *params);
 };
 
 
@@ -818,10 +1070,6 @@ struct ieee80211_iface_combination {
 	bool beacon_int_infra_match;
 };
 
-struct mac_address {
-	u8 addr[ETH_ALEN];
-};
-
 struct ieee80211_txrx_stypes {
 	u16 tx, rx;
 };
@@ -844,6 +1092,104 @@ struct wiphy_wowlan_support {
 	int pattern_min_len;
 };
 
+/**
+ * struct wiphy - wireless hardware description
+ * @reg_notifier: the driver's regulatory notification callback,
+ *	note that if your driver uses wiphy_apply_custom_regulatory()
+ *	the reg_notifier's request can be passed as NULL
+ * @regd: the driver's regulatory domain, if one was requested via
+ * 	the regulatory_hint() API. This can be used by the driver
+ *	on the reg_notifier() if it chooses to ignore future
+ *	regulatory domain changes caused by other drivers.
+ * @signal_type: signal type reported in &struct cfg80211_bss.
+ * @cipher_suites: supported cipher suites
+ * @n_cipher_suites: number of supported cipher suites
+ * @retry_short: Retry limit for short frames (dot11ShortRetryLimit)
+ * @retry_long: Retry limit for long frames (dot11LongRetryLimit)
+ * @frag_threshold: Fragmentation threshold (dot11FragmentationThreshold);
+ *	-1 = fragmentation disabled, only odd values >= 256 used
+ * @rts_threshold: RTS threshold (dot11RTSThreshold); -1 = RTS/CTS disabled
+ * @_net: the network namespace this wiphy currently lives in
+ * @perm_addr: permanent MAC address of this device
+ * @addr_mask: If the device supports multiple MAC addresses by masking,
+ *	set this to a mask with variable bits set to 1, e.g. if the last
+ *	four bits are variable then set it to 00:...:00:0f. The actual
+ *	variable bits shall be determined by the interfaces added, with
+ *	interfaces not matching the mask being rejected to be brought up.
+ * @n_addresses: number of addresses in @addresses.
+ * @addresses: If the device has more than one address, set this pointer
+ *	to a list of addresses (6 bytes each). The first one will be used
+ *	by default for perm_addr. In this case, the mask should be set to
+ *	all-zeroes. In this case it is assumed that the device can handle
+ *	the same number of arbitrary MAC addresses.
+ * @registered: protects ->resume and ->suspend sysfs callbacks against
+ *	unregister hardware
+ * @debugfsdir: debugfs directory used for this wiphy, will be renamed
+ *	automatically on wiphy renames
+ * @dev: (virtual) struct device for this wiphy
+ * @registered: helps synchronize suspend/resume with wiphy unregister
+ * @wext: wireless extension handlers
+ * @priv: driver private data (sized according to wiphy_new() parameter)
+ * @interface_modes: bitmask of interfaces types valid for this wiphy,
+ *	must be set by driver
+ * @iface_combinations: Valid interface combinations array, should not
+ *	list single interface types.
+ * @n_iface_combinations: number of entries in @iface_combinations array.
+ * @software_iftypes: bitmask of software interface types, these are not
+ *	subject to any restrictions since they are purely managed in SW.
+ * @flags: wiphy flags, see &enum wiphy_flags
+ * @features: features advertised to nl80211, see &enum nl80211_feature_flags.
+ * @bss_priv_size: each BSS struct has private data allocated with it,
+ *	this variable determines its size
+ * @max_scan_ssids: maximum number of SSIDs the device can scan for in
+ *	any given scan
+ * @max_sched_scan_ssids: maximum number of SSIDs the device can scan
+ *	for in any given scheduled scan
+ * @max_match_sets: maximum number of match sets the device can handle
+ *	when performing a scheduled scan, 0 if filtering is not
+ *	supported.
+ * @max_scan_ie_len: maximum length of user-controlled IEs device can
+ *	add to probe request frames transmitted during a scan, must not
+ *	include fixed IEs like supported rates
+ * @max_sched_scan_ie_len: same as max_scan_ie_len, but for scheduled
+ *	scans
+ * @coverage_class: current coverage class
+ * @fw_version: firmware version for ethtool reporting
+ * @hw_version: hardware version for ethtool reporting
+ * @max_num_pmkids: maximum number of PMKIDs supported by device
+ * @privid: a pointer that drivers can use to identify if an arbitrary
+ *	wiphy is theirs, e.g. in global notifiers
+ * @bands: information about bands/channels supported by this device
+ *
+ * @mgmt_stypes: bitmasks of frame subtypes that can be subscribed to or
+ *	transmitted through nl80211, points to an array indexed by interface
+ *	type
+ *
+ * @available_antennas_tx: bitmap of antennas which are available to be
+ *	configured as TX antennas. Antenna configuration commands will be
+ *	rejected unless this or @available_antennas_rx is set.
+ *
+ * @available_antennas_rx: bitmap of antennas which are available to be
+ *	configured as RX antennas. Antenna configuration commands will be
+ *	rejected unless this or @available_antennas_tx is set.
+ *
+ * @probe_resp_offload:
+ *	 Bitmap of supported protocols for probe response offloading.
+ *	 See &enum nl80211_probe_resp_offload_support_attr. Only valid
+ *	 when the wiphy flag @WIPHY_FLAG_AP_PROBE_RESP_OFFLOAD is set.
+ *
+ * @max_remain_on_channel_duration: Maximum time a remain-on-channel operation
+ *	may request, if implemented.
+ *
+ * @wowlan: WoWLAN support information
+ *
+ * @ap_sme_capa: AP SME capabilities, flags from &enum nl80211_ap_sme_features.
+ * @ht_capa_mod_mask:  Specify what ht_cap values can be over-ridden.
+ *	If null, then none can be over-ridden.
+ *
+ * @max_acl_mac_addrs: Maximum number of MAC addresses that the device
+ *	supports for ACL.
+ */
 struct wiphy {
 	
 
@@ -863,6 +1209,8 @@ struct wiphy {
 
 	
 	u16 interface_modes;
+
+	u16 max_acl_mac_addrs;
 
 	u32 flags, features;
 
