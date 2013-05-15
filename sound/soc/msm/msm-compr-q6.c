@@ -1109,7 +1109,10 @@ static int msm_compr_ioctl(struct snd_pcm_substream *substream,
 				atomic_set(&prtd->pending_buffer, 1);
 			
 			}
-			
+			rc = wait_event_timeout(the_locks.flush_wait,
+				prtd->cmd_ack, 5 * HZ);
+			if (!rc)
+				pr_err("Flush cmd timeout\n");
 			prtd->pcm_irq_pos = 0;
 		}
 		break;
