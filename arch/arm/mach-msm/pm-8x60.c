@@ -814,6 +814,31 @@ static int64_t msm_pm_timer_exit_suspend(int64_t time, int64_t period)
 	return time;
 }
 
+/**
+ * pm_hrtimer_cb() : Callback function for hrtimer created if the
+ *                   core needs to be awake to handle an event.
+ * @hrtimer : Pointer to hrtimer
+ */
+static enum hrtimer_restart pm_hrtimer_cb(struct hrtimer *hrtimer)
+{
+	return HRTIMER_NORESTART;
+}
+
+/**
+ * msm_pm_set_timer() : Set an hrtimer to wakeup the core in time
+ *                      to handle an event.
+ */
+static void msm_pm_set_timer(uint32_t modified_time_us)
+{
+	u64 modified_time_ns = modified_time_us * NSEC_PER_USEC;
+	ktime_t modified_ktime = ns_to_ktime(modified_time_ns);
+	pm_hrtimer.function = pm_hrtimer_cb;
+	hrtimer_start(&pm_hrtimer, modified_ktime, HRTIMER_MODE_REL);
+}
+
+/******************************************************************************
+ * External Idle/Suspend Functions
+ *****************************************************************************/
 
 void arch_idle(void)
 {
@@ -1584,8 +1609,8 @@ static int __init msm_pm_init(void)
 	msm_pm_add_stats(enable_stats, ARRAY_SIZE(enable_stats));
 
 	suspend_set_ops(&msm_pm_ops);
-	boot_lock_nohalt();
-	msm_pm_qtimer_available();
+	msm_pm_target_init();
+	hrtimer_init(&pm_hrtimer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	msm_cpuidle_init();
 	platform_driver_register(&msm_pc_counter_driver);
 	rc = platform_driver_register(&msm_cpu_status_driver);
