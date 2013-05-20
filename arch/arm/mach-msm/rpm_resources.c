@@ -893,11 +893,12 @@ static void *msm_rpmrs_lowest_limits(bool from_idle,
 
 		if ((MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE == sleep_mode)
 			|| (MSM_PM_SLEEP_MODE_POWER_COLLAPSE == sleep_mode))
-			if (!cpu && msm_rpm_local_request_is_outstanding())
-					break;
-
-
-		if (sleep_us <= 1) {
+			if (!cpu && msm_rpm_local_request_is_outstanding()) {
+				if (MSM_RPMRS_DEBUG_OUTPUT & msm_rpmrs_debug_mask)
+					pr_info(" RPM Request is outstanding\n");
+				break;
+			}
+		if (next_wakeup_us <= 1) {
 			pwr = level->energy_overhead;
 		} else if (sleep_us <= level->time_overhead_us) {
 			pwr = level->energy_overhead / sleep_us;
