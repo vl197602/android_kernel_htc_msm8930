@@ -3125,8 +3125,10 @@ u32 vcd_req_perf_level(
 		return -EINVAL;
 	}
 	res_trk_perf_level = get_res_trk_perf_level(perf_level->level);
-	if (res_trk_perf_level < 0) {
+	if ((int)res_trk_perf_level < 0) {
 		rc = -ENOTSUPP;
+		VCD_MSG_ERROR("%s: unsupported perf level(%d)",
+			__func__, res_trk_perf_level);
 		goto perf_level_not_supp;
 	}
 	rc = vcd_set_perf_level(cctxt->dev_ctxt, res_trk_perf_level);
@@ -3134,6 +3136,10 @@ u32 vcd_req_perf_level(
 		cctxt->reqd_perf_lvl = res_trk_perf_level;
 		cctxt->perf_set_by_client = 1;
 	}
+	VCD_MSG_HIGH("%s: client perf level = %u, "\
+		"perf_set_by_client = %u, is_turbo_enabled = %u",
+		__func__, cctxt->reqd_perf_lvl, cctxt->perf_set_by_client,
+		cctxt->is_turbo_enabled);
 perf_level_not_supp:
 	return rc;
 }
