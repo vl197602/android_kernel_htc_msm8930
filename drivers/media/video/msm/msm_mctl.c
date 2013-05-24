@@ -1304,6 +1304,17 @@ static int msm_mctl_v4l2_reqbufs(struct file *f, void *pctx,
 	WARN_ON(pctx != f->private_data);
 
 	mutex_lock(&pcam_inst->inst_lock);
+	if (!pcam_inst->vbqueue_initialized && pb->count) {
+		pmctl = msm_cam_server_get_mctl(pcam->mctl_handle);
+		if (pmctl == NULL) {
+			pr_err("%s Invalid mctl ptr", __func__);
+			mutex_unlock(&pcam_inst->inst_lock);
+			return -EINVAL;
+		}
+		pmctl->mctl_vbqueue_init(pcam_inst, &pcam_inst->vid_bufq,
+			pb->type);
+		pcam_inst->vbqueue_initialized = 1;
+	}
 	rc = vb2_reqbufs(&pcam_inst->vid_bufq, pb);
 	if (rc < 0) {
 		pr_err("%s reqbufs failed %d ", __func__, rc);

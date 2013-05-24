@@ -645,8 +645,18 @@ static int msm_server_streamoff(struct msm_cam_v4l2_device *pcam, int idx)
 	
 	rc = msm_server_control(&g_server_dev, &ctrlcmd);
 
-	return rc;
-}
+	mutex_lock(&pcam_inst->inst_lock);
+	if (!pcam_inst->vbqueue_initialized && pb->count) {
+		pmctl = msm_cam_server_get_mctl(pcam->mctl_handle);
+		if (pmctl == NULL) {
+			pr_err("%s Invalid mctl ptr", __func__);
+			mutex_unlock(&pcam_inst->inst_lock);
+			return -EINVAL;
+		}
+		pmctl->mctl_vbqueue_init(pcam_inst, &pcam_inst->vid_bufq,
+			pb->type);
+		pcam_inst->vbqueue_initialized = 1;
+	}
 
 static int msm_server_proc_ctrl_cmd(struct msm_cam_v4l2_device *pcam,
 				 struct v4l2_control *ctrl, int is_set_cmd)
@@ -1906,40 +1916,21 @@ static int msm_open(struct file *f)
 	pcam->use_count++;
 	D("%s use_count %d\n", __func__, pcam->use_count);
 	if (pcam->use_count == 1) {
-		int ges_evt = MSM_V4L2_GES_CAM_OPEN;
-
-		pr_info("%s use_count %d\n", __func__, pcam->use_count); 
-
-		
-		if (atomic_read(&g_server_dev.number_pcam_active) > 0) {
-			pr_err("%s: Cannot have more than one active camera\n", __func__);
-			rc = -EINVAL;
-			goto more_than_one_active_cam_error;
+		server_q_idx = msm_find_free_queue();
+		if (server_q_idx < 0) {
+			pr_err("%s No free queue available ", __func__);
+			goto msm_cam_server_begin_session_failed;
 		}
-		
-		pcam->server_queue_idx = server_q_idx;
-		queue = &g_server_dev.server_queue[server_q_idx];
-		queue->ctrl_data = kzalloc(sizeof(uint8_t) *
-			max_control_command_size, GFP_KERNEL);
-		msm_queue_init(&queue->ctrl_q, "control");
-		msm_queue_init(&queue->eventData_q, "eventdata");
-		queue->queue_active = 1;
-
-		msm_cam_server_subdev_notify(g_server_dev.gesture_device,
-			NOTIFY_GESTURE_CAM_EVT, &ges_evt);
-
-
-		rc = msm_cam_server_open_session(&g_server_dev, pcam);
+		rc = msm_server_begin_session(pcam, server_q_idx);
 		if (rc < 0) {
 			pr_err("%s: cam_server_open_session failed %d\n",
 			__func__, rc);
 			goto msm_cam_server_open_session_failed;
 		}
-
-		pmctl = msm_camera_get_mctl(pcam->mctl_handle);
-		if (!pmctl)  {
-			rc = -EINVAL;
-			goto msm_cam_server_open_session_failed;
+		pmctl = msm_cam_server_get_mctl(pcam->mctl_handle);
+		if (!pmctl) {
+			pr_err("%s mctl ptr is null ", __func__);
+			goto msm_cam_server_get_mctl_failed;
 		}
 
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
@@ -2014,19 +2005,17 @@ msm_send_open_server_failed:
 		pmctl->mctl_release = NULL;
 	}
 mctl_open_failed:
-
-	if (pcam->use_count == 1) {
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-		if (ion_client_created) {
-			D("%s: destroy ion client", __func__);
-			kref_put(&pmctl->refcount, msm_release_ion_client);
-		}
-#endif
-		if (msm_cam_server_close_session(&g_server_dev, pcam) < 0)
-			pr_err("%s: msm_cam_server_close_session failed\n",
-				__func__);
+	if (ion_client_created) {
+		D("%s: destroy ion client", __func__);
+		kref_put(&pmctl->refcount, msm_release_ion_client);
 	}
-msm_cam_server_open_session_failed:
+#endif
+msm_cam_server_get_mctl_failed:
+	if (msm_server_end_session(pcam) < 0)
+		pr_err("%s: msm_server_end_session failed\n",
+			__func__);
+msm_cam_server_begin_session_failed:
 	if (pcam->use_count == 1) {
 		if (queue) {
 			queue->queue_active = 0;
@@ -3652,6 +3641,14 @@ static int msm_setup_server_dev(struct platform_device *pdev)
 		msm_queue_init(&queue->ctrl_q, "control");
 		msm_queue_init(&queue->eventData_q, "eventdata");
 	}
+	v4l2_event_queue(pcam->pvdev, &v4l2_ev);
+	return rc;
+copy_from_user_failed:
+	kfree(payload);
+payload_alloc_fail:
+	kfree(event_qcmd);
+event_qcmd_alloc_fail:
+	mutex_unlock(&pcam->event_lock);
 	return rc;
 }
 
