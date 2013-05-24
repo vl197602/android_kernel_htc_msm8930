@@ -153,15 +153,14 @@ static void diag_smd_cntl_send_req(int proc_num)
 		return;
 	}
 
-	r = smd_read_avail(smd_ch);
-	if (r > IN_BUF_SIZE) {
-		if (r < MAX_IN_BUF_SIZE) {
-			pr_err("diag: SMD CNTL sending pkt upto %d bytes", r);
-			buf = krealloc(buf, r, GFP_KERNEL);
-		} else {
-			pr_err("diag: CNTL pkt > %d bytes", MAX_IN_BUF_SIZE);
-			kfree(pkt_params);
-			return;
+	while (count_bytes + HDR_SIZ <= total_recd) {
+		type = *(uint32_t *)(buf);
+		data_len = *(uint32_t *)(buf + 4);
+		if (type < DIAG_CTRL_MSG_REG ||
+				 type > DIAG_CTRL_MSG_LAST) {
+			pr_alert("diag: In %s, Invalid Msg type %d proc %d",
+				 __func__, type, smd_info->peripheral);
+			break;
 		}
 	}
 	if (buf && r > 0) {

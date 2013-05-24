@@ -466,6 +466,43 @@ void diag_send_msg_mask_update(smd_channel_t *ch, int updated_ssid_first,
 	mutex_unlock(&driver->diag_cntl_mutex);
 }
 
+void diag_send_feature_mask_update(smd_channel_t *ch, int proc)
+{
+	void *buf = driver->buf_feature_mask_update;
+	int header_size = sizeof(struct diag_ctrl_feature_mask);
+	int wr_size = -ENOMEM, retry_count = 0, timer;
+	uint8_t feature_byte = 0;
+
+	mutex_lock(&driver->diag_cntl_mutex);
+	/* send feature mask update */
+	driver->feature_mask->ctrl_pkt_id = DIAG_CTRL_MSG_FEATURE;
+	driver->feature_mask->ctrl_pkt_data_len = 4 + FEATURE_MASK_LEN_BYTES;
+	driver->feature_mask->feature_mask_len = FEATURE_MASK_LEN_BYTES;
+	memcpy(buf, driver->feature_mask, header_size);
+	feature_byte |= F_DIAG_INT_FEATURE_MASK;
+	feature_byte |= APPS_RESPOND_LOG_ON_DEMAND;
+	memcpy(buf+header_size, &feature_byte, FEATURE_MASK_LEN_BYTES);
+
+	if (ch) {
+		while (retry_count < 3) {
+			wr_size = smd_write(ch, buf, header_size +
+						FEATURE_MASK_LEN_BYTES);
+			if (wr_size == -ENOMEM) {
+				retry_count++;
+				for (timer = 0; timer < 5; timer++)
+					udelay(2000);
+			} else
+				break;
+		}
+		if (wr_size != header_size + FEATURE_MASK_LEN_BYTES)
+			pr_err("diag: proc %d fail feature update %d, tried %d",
+			   proc, wr_size, header_size + FEATURE_MASK_LEN_BYTES);
+	} else
+		pr_err("diag: ch invalid, feature update on proc %d\n", proc);
+	mutex_unlock(&driver->diag_cntl_mutex);
+
+}
+
 int diag_process_apps_masks(unsigned char *buf, int len)
 {
 	int packet_type = 1;

@@ -47,12 +47,8 @@
 
 int diag_debug_buf_idx;
 unsigned char diag_debug_buf[1024];
-static unsigned int buf_tbl_size = 8; 
-int sdio_diag_initialized;
-int smd_diag_initialized;
-#if DIAG_XPST
-static int diag_smd_function_mode;
-#endif
+/* Number of entries in table of buffers */
+static unsigned int buf_tbl_size = 10;
 struct diag_master_table entry;
 smd_channel_t *ch_temp = NULL, *chlpass_temp = NULL, *ch_wcnss_temp = NULL;
 struct diag_send_desc_type send = { NULL, NULL, DIAG_STATE_START, 0 };
@@ -269,35 +265,10 @@ drop:
 					__func__);
 				return;
 			}
-			if (pkt_len > r)
-				pr_debug("diag: In %s, SMD sending partial pkt %d %d %d %d\n",
-					__func__, pkt_len, r, total_recd,
-					loop_count);
-			
-			smd_read(driver->ch, temp_buf, r);
-			temp_buf += r;
-		}
-
-		if (buf && driver->qxdm2sd_drop && (driver->logging_mode == USB_MODE)
-				&& *((unsigned char *)buf) != 0xc8) {
-			DIAG_DBUG("%s:Drop the diag payload :%d\n", __func__, retry);
-			DIAGFWD_7K_RAWDATA(buf, "modem", DIAG_DBG_DROP);
-			driver->in_busy_1 = 0;
-			driver->in_busy_2 = 0;
-			total_recd = 0;
-			
-			msleep(10);
-			r = smd_read_avail(driver->ch);
-			if (++retry > 20) {
-				driver->qxdm2sd_drop = 0;
-				return;
-			}
-			if (r)
-				goto drop;
-			else {
-				DIAG_INFO("Nothing pending in SMD buffer\n");
-				driver->qxdm2sd_drop = 0;
-				return;
+			if (pkt_len > r) {
+				pr_debug("diag: In %s, SMD sending partial pkt %d %d %d %d %d %d\n",
+				__func__, pkt_len, r, total_recd, loop_count,
+				smd_info->peripheral, smd_info->type);
 			}
 
 		}
@@ -337,8 +308,9 @@ int diag_device_write(void *buf, int proc_num, struct diag_request *write_ptr)
 	pr_debug("proc_num: %d, logging_mode: %d\n",
 		proc_num, driver->logging_mode);
 	if (driver->logging_mode == MEMORY_DEVICE_MODE) {
-		if (proc_num == APPS_DATA) {
-			for (i = 0; i < driver->poolsize_write_struct; i++)
+		int hsic_updated = 0;
+		if (data_type == APPS_DATA) {
+			for (i = 0; i < driver->buf_tbl_size; i++)
 				if (driver->buf_tbl[i].length == 0) {
 					driver->buf_tbl[i].buf = buf;
 					driver->buf_tbl[i].length =
@@ -768,9 +740,15 @@ void diag_send_data(struct diag_master_table entry, unsigned char *buf,
 					 int len, int type)
 {
 	driver->pkt_length = len;
-	if (entry.process_id != NON_APPS_PROC && type != MODEM_DATA) {
-		diag_update_pkt_buffer(buf);
-		diag_update_sleeping_process(entry.process_id, PKT_TYPE);
+
+	/* If the process_id corresponds to an apps process */
+	if (entry.process_id != NON_APPS_PROC) {
+		/* If the message is to be sent to the apps process */
+		if (type != MODEM_DATA) {
+			diag_update_pkt_buffer(buf);
+			diag_update_sleeping_process(entry.process_id,
+							PKT_TYPE);
+		}
 	} else {
 		if (len > 0) {
 			if (entry.client_id < NUM_SMD_DATA_CHANNELS) {
@@ -1721,6 +1699,52 @@ void diagfwd_init(void)
 			goto err;
 		kmemleak_not_leak(driver->buf_in_wcnss_2);
 	}
+
+	return 1;
+err:
+	kfree(smd_info->buf_in_1);
+	kfree(smd_info->buf_in_2);
+	kfree(smd_info->write_ptr_1);
+	kfree(smd_info->write_ptr_2);
+
+	return 0;
+}
+
+void diagfwd_init(void)
+{
+	int success;
+	int i;
+
+	wrap_enabled = 0;
+	wrap_count = 0;
+	diag_debug_buf_idx = 0;
+	driver->read_len_legacy = 0;
+	driver->use_device_tree = has_device_tree();
+	driver->real_time_mode = 1;
+	/*
+	 * The number of entries in table of buffers
+	 * should not be any smaller than hdlc poolsize.
+	 */
+	driver->buf_tbl_size = (buf_tbl_size < driver->poolsize_hdlc) ?
+				driver->poolsize_hdlc : buf_tbl_size;
+	mutex_init(&driver->diag_hdlc_mutex);
+	mutex_init(&driver->diag_cntl_mutex);
+
+	success = diag_smd_constructor(&driver->smd_data[MODEM_DATA],
+					MODEM_DATA, SMD_DATA_TYPE);
+	if (!success)
+		goto err;
+
+	success = diag_smd_constructor(&driver->smd_data[LPASS_DATA],
+					LPASS_DATA, SMD_DATA_TYPE);
+	if (!success)
+		goto err;
+
+	success = diag_smd_constructor(&driver->smd_data[WCNSS_DATA],
+					WCNSS_DATA, SMD_DATA_TYPE);
+	if (!success)
+		goto err;
+
 	if (driver->usb_buf_out  == NULL &&
 	     (driver->usb_buf_out = kzalloc(USB_MAX_OUT_BUF,
 					 GFP_KERNEL)) == NULL)
@@ -1730,23 +1754,6 @@ void diagfwd_init(void)
 	    && (driver->hdlc_buf = kzalloc(HDLC_MAX, GFP_KERNEL)) == NULL)
 		goto err;
 	kmemleak_not_leak(driver->hdlc_buf);
-	if (driver->user_space_data == NULL)
-		driver->user_space_data = kzalloc(USER_SPACE_DATA, GFP_KERNEL);
-		if (driver->user_space_data == NULL)
-			goto err;
-	kmemleak_not_leak(driver->user_space_data);
-#if defined(CONFIG_DIAG_SDIO_PIPE) || defined(CONFIG_DIAGFWD_BRIDGE_CODE)
-	if (driver->user_space_mdm_data == NULL)
-		driver->user_space_mdm_data = kzalloc(USER_SPACE_DATA, GFP_KERNEL);
-		if (driver->user_space_mdm_data == NULL)
-			goto err;
-	kmemleak_not_leak(driver->user_space_mdm_data);
-	if (driver->user_space_qsc_data == NULL)
-		driver->user_space_qsc_data = kzalloc(USER_SPACE_DATA, GFP_KERNEL);
-		if (driver->user_space_qsc_data == NULL)
-			goto err;
-	kmemleak_not_leak(driver->user_space_qsc_data);
-#endif
 	if (driver->client_map == NULL &&
 	    (driver->client_map = kzalloc
 	     ((driver->num_clients) * sizeof(struct diag_client_map),
@@ -1768,7 +1775,7 @@ void diagfwd_init(void)
 	kmemleak_not_leak(driver->qscclient_map);
 #endif
 	if (driver->buf_tbl == NULL)
-			driver->buf_tbl = kzalloc(buf_tbl_size *
+			driver->buf_tbl = kzalloc(driver->buf_tbl_size *
 			  sizeof(struct diag_write_device), GFP_KERNEL);
 	if (driver->buf_tbl == NULL)
 		goto err;
@@ -1905,7 +1912,6 @@ err:
 	kfree(driver->write_ptr_wcnss_2);
 	kfree(driver->usb_read_ptr);
 	kfree(driver->apps_rsp_buf);
-	kfree(driver->user_space_data);
 	if (driver->diag_wq)
 		destroy_workqueue(driver->diag_wq);
 }
@@ -1950,6 +1956,5 @@ void diagfwd_exit(void)
 	kfree(driver->write_ptr_wcnss_2);
 	kfree(driver->usb_read_ptr);
 	kfree(driver->apps_rsp_buf);
-	kfree(driver->user_space_data);
 	destroy_workqueue(driver->diag_wq);
 }

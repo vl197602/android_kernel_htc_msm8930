@@ -913,6 +913,12 @@ void diag_dci_exit(void)
 	smd_close(driver->ch_dci);
 	driver->ch_dci = 0;
 	platform_driver_unregister(&msm_diag_dci_driver);
+
+	if (driver->dci_client_tbl) {
+		for (i = 0; i < MAX_DCI_CLIENTS; i++)
+			kfree(driver->dci_client_tbl[i].dci_data);
+	}
+
 	kfree(driver->req_tracking_tbl);
 	kfree(driver->dci_client_tbl);
 	kfree(driver->apps_dci_buf);
