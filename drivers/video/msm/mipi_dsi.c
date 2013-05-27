@@ -86,7 +86,9 @@ static int mipi_dsi_off(struct platform_device *pdev)
 
 
 	if (mfd->panel_info.type == MIPI_CMD_PANEL) {
-		mipi_dsi_clk_cfg(1);
+		mipi_dsi_prepare_ahb_clocks();
+		mipi_dsi_ahb_ctrl(1);
+		mipi_dsi_clk_enable();
 
 		
 		mipi_dsi_cmd_mdp_busy();
@@ -112,6 +114,8 @@ static int mipi_dsi_off(struct platform_device *pdev)
 
 	mipi_dsi_clk_turn_off();
 
+	mipi_dsi_unprepare_clocks();
+	mipi_dsi_unprepare_ahb_clocks();
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(0);
 
@@ -182,6 +186,16 @@ static int mipi_dsi_on(struct platform_device *pdev)
 
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(1);
+
+	cont_splash_clk_ctrl(0);
+	mipi_dsi_prepare_ahb_clocks();
+
+	mipi_dsi_ahb_ctrl(1);
+
+	clk_rate = mfd->fbi->var.pixclock;
+	clk_rate = min(clk_rate, mfd->panel_info.clk_max);
+
+	mipi_dsi_phy_ctrl(1);
 
 	if (mdp_rev == MDP_REV_42 && mipi_dsi_pdata)
 		target_type = mipi_dsi_pdata->target_type;
@@ -336,7 +350,10 @@ static int mipi_dsi_on(struct platform_device *pdev)
 			if (!mfd->panel_info.lcdc.no_set_tear)
 				mipi_dsi_set_tear_on(mfd);
 		}
-		mipi_dsi_clk_cfg(0);
+		mipi_dsi_clk_disable();
+		mipi_dsi_unprepare_clocks();
+		mipi_dsi_ahb_ctrl(0);
+		mipi_dsi_unprepare_ahb_clocks();
 	}
 
 
@@ -445,11 +462,13 @@ static int mipi_dsi_probe(struct platform_device *pdev)
 
 		if (mipi_dsi_pdata && mipi_dsi_pdata->splash_is_enabled &&
 			!mipi_dsi_pdata->splash_is_enabled()) {
+			mipi_dsi_prepare_ahb_clocks();
 			mipi_dsi_ahb_ctrl(1);
 			MIPI_OUTP(MIPI_DSI_BASE + 0x118, 0);
 			MIPI_OUTP(MIPI_DSI_BASE + 0x0, 0);
 			MIPI_OUTP(MIPI_DSI_BASE + 0x200, 0);
 			mipi_dsi_ahb_ctrl(0);
+			mipi_dsi_unprepare_ahb_clocks();
 		}
 		mipi_dsi_resource_initialized = 1;
 
