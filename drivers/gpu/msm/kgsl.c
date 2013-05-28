@@ -359,7 +359,12 @@ kgsl_context_detach(struct kgsl_context *context)
 		device->ftbl->drawctxt_destroy(device, context);
 	
 	BUG_ON(context->devctxt);
-	kgsl_cancel_events_ctxt(device, context);
+	/*
+	 * Cancel events after the device-specific context is
+	 * destroyed, to avoid possibly freeing memory while
+	 * it is still in use by the GPU.
+	 */
+	kgsl_context_cancel_events(device, context);
 	idr_remove(&device->context_idr, id);
 	context->id = KGSL_CONTEXT_INVALID;
 	kgsl_context_put(context);
@@ -1213,9 +1218,11 @@ static long kgsl_ioctl_cmdstream_readtimestamp_ctxtid(struct kgsl_device_private
 }
 
 static void kgsl_freemem_event_cb(struct kgsl_device *device,
-	void *priv, u32 id, u32 timestamp)
+	void *priv, u32 id, u32 timestamp, u32 type)
 {
 	struct kgsl_mem_entry *entry = priv;
+
+	/* Free the memory for all event types */
 	trace_kgsl_mem_timestamp_free(device, entry, id, timestamp, 0);
 	kgsl_mem_entry_detach_process(entry);
 }
@@ -2150,11 +2157,12 @@ struct kgsl_genlock_event_priv {
 
 
 static void kgsl_genlock_event_cb(struct kgsl_device *device,
-	void *priv, u32 context_id, u32 timestamp)
+	void *priv, u32 context_id, u32 timestamp, u32 type)
 {
 	struct kgsl_genlock_event_priv *ev = priv;
 	int ret;
 
+	/* Signal the lock for every event type */
 	ret = genlock_lock(ev->handle, GENLOCK_UNLOCK, 0, 0);
 	if (ret)
 		KGSL_CORE_ERR("Error while unlocking genlock: %d\n", ret);
