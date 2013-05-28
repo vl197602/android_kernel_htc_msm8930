@@ -574,13 +574,13 @@ static int snapshot_rb(struct kgsl_device *device, void *snapshot,
 
 			struct kgsl_memdesc *memdesc =
 				adreno_find_ctxtmem(device, ptbase, ibaddr,
-					ibsize);
+					ibsize << 2);
 
 			
 			if (NULL == memdesc)
 				if (kgsl_gpuaddr_in_memdesc(
 						&device->mmu.setstate_memory,
-						ibaddr, ibsize))
+						ibaddr, ibsize << 2))
 					memdesc = &device->mmu.setstate_memory;
 
 			if (ibaddr == ibbase || memdesc != NULL)
