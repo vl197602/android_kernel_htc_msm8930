@@ -173,6 +173,7 @@ struct kgsl_mem_entry {
 	int flags;
 	void *priv_data;
 	struct rb_node node;
+	unsigned int id;
 	unsigned int context_id;
 	struct kgsl_process_private *priv;
 };

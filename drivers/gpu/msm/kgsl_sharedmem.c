@@ -597,7 +597,7 @@ EXPORT_SYMBOL(kgsl_cache_range_op);
 static int
 _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 			struct kgsl_pagetable *pagetable,
-			size_t size, unsigned int protflags)
+			size_t size)
 {
 	int pcount = 0, order, ret = 0;
 	int j, len, page_size, sglen_alloc, sglen = 0;
@@ -732,10 +732,8 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	outer_cache_range_op_sg(memdesc->sg, memdesc->sglen,
 				KGSL_CACHE_OP_FLUSH);
 
-	ret = kgsl_mmu_map(pagetable, memdesc, protflags);
-
-	if (ret)
-		goto done;
+	KGSL_STATS_ADD(size, kgsl_driver.stats.page_alloc,
+		kgsl_driver.stats.page_alloc_max);
 
 	order = get_order(size);
 
@@ -763,8 +761,7 @@ kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 
 	size = ALIGN(size, PAGE_SIZE * 2);
 
-	ret =  _kgsl_sharedmem_page_alloc(memdesc, pagetable, size,
-		GSL_PT_PAGE_RV | GSL_PT_PAGE_WV);
+	ret =  _kgsl_sharedmem_page_alloc(memdesc, pagetable, size);
 	if (!ret)
 		ret = kgsl_page_alloc_map_kernel(memdesc);
 	if (ret) {
@@ -780,23 +777,7 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 			    struct kgsl_pagetable *pagetable,
 			    size_t size)
 {
-	unsigned int protflags;
-	int ret = 0;
-
-	if (size == 0)
-		return -EINVAL;
-
-	protflags = GSL_PT_PAGE_RV;
-	if (!(memdesc->flags & KGSL_MEMFLAGS_GPUREADONLY))
-		protflags |= GSL_PT_PAGE_WV;
-
-	ret = _kgsl_sharedmem_page_alloc(memdesc, pagetable, size,
-		protflags);
-
-	if (ret == 0 && private)
-		kgsl_process_add_stats(private, KGSL_MEM_ENTRY_PAGE_ALLOC, size);
-
-	return ret;
+	return _kgsl_sharedmem_page_alloc(memdesc, pagetable, PAGE_ALIGN(size));
 }
 EXPORT_SYMBOL(kgsl_sharedmem_page_alloc_user);
 
@@ -1005,12 +986,6 @@ _kgsl_sharedmem_ebimem(struct kgsl_memdesc *memdesc,
 	}
 
 	result = memdesc_sg_phys(memdesc, memdesc->physaddr, size);
-
-	if (result)
-		goto err;
-
-	result = kgsl_mmu_map(pagetable, memdesc,
-		GSL_PT_PAGE_RV | GSL_PT_PAGE_WV);
 
 	if (result)
 		goto err;
