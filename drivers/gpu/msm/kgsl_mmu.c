@@ -594,6 +594,10 @@ void kgsl_mh_start(struct kgsl_device *device)
 		kgsl_regwrite(device, MH_CLNT_INTF_CTRL_CONFIG2,
 				mh->mh_intf_cfg2);
 
+	/*
+	 * Interrupts are enabled on a per-device level when
+	 * kgsl_pwrctrl_irq() is called
+	 */
 }
 
 int
@@ -668,7 +672,6 @@ kgsl_mmu_map(struct kgsl_pagetable *pagetable,
 					pagetable->stats.entries);
 			return -ENOMEM;
 		}
->>>>>>> 2aba0f3... msm: kgsl: disable use of iommu TTBR1
 	}
 
 	if (KGSL_MMU_TYPE_IOMMU != kgsl_mmu_get_mmutype())

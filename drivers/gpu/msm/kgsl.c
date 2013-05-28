@@ -740,7 +740,7 @@ static int kgsl_open(struct inode *inodep, struct file *filep)
 
 	dev_priv->device = device;
 	filep->private_data = dev_priv;
-	
+
 	mutex_lock(&device->mutex);
 	kgsl_check_suspended(device);
 
