@@ -142,6 +142,8 @@ struct kgsl_memdesc_ops {
 
 #define KGSL_MEMDESC_GUARD_PAGE BIT(0)
 #define KGSL_MEMDESC_GLOBAL BIT(1)
+/* The memdesc is frozen during a snapshot */
+#define KGSL_MEMDESC_FROZEN BIT(2)
 
 struct kgsl_memdesc {
 	struct kgsl_pagetable *pagetable;
@@ -183,14 +185,10 @@ KGSL_MEM_ENTRY_MAX,
 };
 #endif
 
-
-#define KGSL_MEM_ENTRY_FROZEN (1 << 0)
-
 struct kgsl_mem_entry {
 	struct kref refcount;
 	struct kgsl_memdesc memdesc;
 	int memtype;
-	int flags;
 	void *priv_data;
 	struct rb_node node;
 	unsigned int id;

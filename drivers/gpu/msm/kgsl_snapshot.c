@@ -260,7 +260,7 @@ static void kgsl_snapshot_put_object(struct kgsl_device *device,
 {
 	list_del(&obj->node);
 
-	obj->entry->flags &= ~KGSL_MEM_ENTRY_FROZEN;
+	obj->entry->memdesc.priv &= ~KGSL_MEMDESC_FROZEN;
 	kgsl_mem_entry_put(obj->entry);
 
 	kfree(obj);
@@ -361,10 +361,10 @@ int kgsl_snapshot_get_object(struct kgsl_device *device, unsigned int ptbase,
 	list_add(&obj->node, &device->snapshot_obj_list);
 
 
-	if (entry->flags & KGSL_MEM_ENTRY_FROZEN)
+	if (entry->memdesc.priv & KGSL_MEMDESC_FROZEN)
 		return 0;
 
-	entry->flags |= KGSL_MEM_ENTRY_FROZEN;
+	entry->memdesc.priv |= KGSL_MEMDESC_FROZEN;
 
 	return entry->memdesc.size;
 }
