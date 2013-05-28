@@ -414,8 +414,10 @@ int adreno_ringbuffer_start(struct adreno_ringbuffer *rb)
 	
 	adreno_regwrite(device, REG_CP_ME_CNTL, 0);
 
-	
-	adreno_dev->gpudev->rb_init(adreno_dev, rb);
+	/* ME init is GPU specific, so jump into the sub-function */
+	status = adreno_dev->gpudev->rb_init(adreno_dev, rb);
+	if (status)
+		return status;
 
 	
 	status = adreno_idle(device);
