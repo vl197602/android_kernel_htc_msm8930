@@ -51,7 +51,7 @@ struct adreno_ringbuffer {
 	unsigned int wptr; 
 	unsigned int rptr; 
 
-	unsigned int timestamp[KGSL_MEMSTORE_MAX];
+	unsigned int global_ts;
 };
 
 

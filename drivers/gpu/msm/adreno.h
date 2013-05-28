@@ -269,6 +269,30 @@ static inline int adreno_rb_ctxtswitch(unsigned int *cmd)
 		cmd[1] == KGSL_CONTEXT_TO_MEM_IDENTIFIER);
 }
 
+static inline int adreno_context_timestamp(struct kgsl_context *k_ctxt,
+		struct adreno_ringbuffer *rb)
+{
+	struct adreno_context *a_ctxt = NULL;
+
+	if (k_ctxt)
+		a_ctxt = k_ctxt->devctxt;
+
+	if (a_ctxt && a_ctxt->flags & CTXT_FLAGS_PER_CONTEXT_TS)
+		return a_ctxt->timestamp;
+
+	return rb->global_ts;
+}
+
+/**
+ * adreno_encode_istore_size - encode istore size in CP format
+ * @adreno_dev - The 3D device.
+ *
+ * Encode the istore size into the format expected that the
+ * CP_SET_SHADER_BASES and CP_ME_INIT commands:
+ * bits 31:29 - istore size as encoded by this function
+ * bits 27:16 - vertex shader start offset in instructions
+ * bits 11:0 - pixel shader start offset in instructions.
+ */
 static inline int adreno_encode_istore_size(struct adreno_device *adreno_dev)
 {
 	unsigned int size;
