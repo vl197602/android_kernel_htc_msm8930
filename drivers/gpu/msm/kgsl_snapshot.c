@@ -159,8 +159,9 @@ static int snapshot_os(struct kgsl_device *device,
 	header->grpclk = kgsl_get_clkrate(pwr->grp_clks[0]);
 	header->busclk = kgsl_get_clkrate(pwr->ebi1_clk);
 
-	
-	header->current_context = -1;
+	/* Save the last active context */
+	kgsl_sharedmem_readl(&device->memstore, &header->current_context,
+		KGSL_MEMSTORE_OFFSET(KGSL_MEMSTORE_GLOBAL, current_context));
 
 	
 	header->ptbase = kgsl_mmu_get_current_ptbase(&device->mmu);
