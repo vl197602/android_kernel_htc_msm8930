@@ -2175,6 +2175,11 @@ static void a3xx_drawctxt_save(struct adreno_device *adreno_dev,
 	if ((context->flags & CTXT_FLAGS_GMEM_SAVE) &&
 	    (context->flags & CTXT_FLAGS_GMEM_SHADOW)) {
 
+		kgsl_cffdump_syncmem(NULL,
+			&context->gpustate,
+			context->context_gmem_shadow.gmem_save[1],
+			context->context_gmem_shadow.gmem_save[2] << 2, true);
+
 		adreno_ringbuffer_issuecmds(device, context,
 					KGSL_CMD_FLAGS_PMODE,
 					    context->context_gmem_shadow.
@@ -2210,6 +2215,12 @@ static void a3xx_drawctxt_restore(struct adreno_device *adreno_dev,
 
 
 	if (context->flags & CTXT_FLAGS_GMEM_RESTORE) {
+		kgsl_cffdump_syncmem(NULL,
+			&context->gpustate,
+			context->context_gmem_shadow.gmem_restore[1],
+			context->context_gmem_shadow.gmem_restore[2] << 2,
+			true);
+
 		adreno_ringbuffer_issuecmds(device, context,
 					KGSL_CMD_FLAGS_PMODE,
 					    context->context_gmem_shadow.
