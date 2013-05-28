@@ -534,7 +534,11 @@ adreno_ringbuffer_addcmds(struct adreno_ringbuffer *rb,
 	if (adreno_is_a3xx(adreno_dev))
 		total_sizedwords += 7;
 
-	total_sizedwords += 2; 
+	if (adreno_is_a2xx(adreno_dev))
+		total_sizedwords += 2; /* CP_WAIT_FOR_IDLE */
+
+	total_sizedwords += 2; /* scratchpad ts for fault tolerance */
+
 	if (context && context->flags & CTXT_FLAGS_PER_CONTEXT_TS &&
 			!(flags & KGSL_CMD_FLAGS_INTERNAL_ISSUE)) {
 		total_sizedwords += 3; 
