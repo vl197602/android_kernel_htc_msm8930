@@ -474,30 +474,7 @@ done:
 	return ret;
 }
 
-static int snapshot_istore(struct kgsl_device *device, void *snapshot,
-	int remain, void *priv)
-{
-	struct kgsl_snapshot_istore *header = snapshot;
-	unsigned int *data = snapshot + sizeof(*header);
-	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
-	int count, i;
-
-	count = adreno_dev->istore_size * adreno_dev->instruction_size;
-
-	if (remain < (count * 4) + sizeof(*header)) {
-		KGSL_DRV_ERR(device,
-			"snapshot: Not enough memory for the istore section");
-		return 0;
-	}
-
-	header->count = adreno_dev->istore_size;
-
-	for (i = 0; i < count; i++)
-		kgsl_regread(device, ADRENO_ISTORE_START + i, &data[i]);
-
-	return (count * 4) + sizeof(*header);
-}
-
+/* Snapshot the ringbuffer memory */
 static int snapshot_rb(struct kgsl_device *device, void *snapshot,
 	int remain, void *priv)
 {
@@ -742,14 +719,7 @@ void *adreno_snapshot(struct kgsl_device *device, void *snapshot, int *remain,
 	for (i = 0; i < objbufptr; i++)
 		snapshot = dump_object(device, i, snapshot, remain);
 
-
-	if (hang) {
-		snapshot = kgsl_snapshot_add_section(device,
-			KGSL_SNAPSHOT_SECTION_ISTORE, snapshot, remain,
-			snapshot_istore, NULL);
-	}
-
-	
+	/* Add GPU specific sections - registers mainly, but other stuff too */
 	if (adreno_dev->gpudev->snapshot)
 		snapshot = adreno_dev->gpudev->snapshot(adreno_dev, snapshot,
 			remain, hang);
