@@ -127,7 +127,9 @@ static int snapshot_os(struct kgsl_device *device,
 	int size = sizeof(*header);
 
 
+	rcu_read_lock();
 	idr_for_each(&device->context_idr, snapshot_context_count, &ctxtcount);
+	rcu_read_unlock();
 
 	size += ctxtcount * sizeof(struct kgsl_snapshot_linux_context);
 
@@ -175,9 +177,10 @@ static int snapshot_os(struct kgsl_device *device,
 
 	
 	_ctxtptr = snapshot + sizeof(*header);
+	rcu_read_lock();
 	idr_for_each(&device->context_idr, snapshot_context_info, NULL);
-
-	
+	rcu_read_unlock();
+	/* Return the size of the data segment */
 	return size;
 }
 
