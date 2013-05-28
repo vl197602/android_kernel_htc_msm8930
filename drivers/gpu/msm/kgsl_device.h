@@ -470,18 +470,6 @@ static inline struct kgsl_context *kgsl_context_get_owner(
 	return context;
 }
 
-static inline void
-kgsl_active_count_put(struct kgsl_device *device)
-{
-	if (device->active_cnt == 1)
-		INIT_COMPLETION(device->suspend_gate);
-
-	device->active_cnt--;
-
-	if (device->active_cnt == 0)
-		complete(&device->suspend_gate);
-}
-
 static inline void kgsl_context_cancel_events(struct kgsl_device *device,
 	struct kgsl_context *context)
 {
@@ -501,4 +489,5 @@ static inline void kgsl_cancel_events_timestamp(struct kgsl_device *device,
 {
 	kgsl_signal_event(device, context, timestamp, KGSL_EVENT_CANCELLED);
 }
+
 #endif  /* __KGSL_DEVICE_H */
