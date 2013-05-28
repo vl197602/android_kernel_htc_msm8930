@@ -114,6 +114,17 @@ static unsigned int vfd_control_0;
 static unsigned int sp_vs_pvt_mem_addr;
 static unsigned int sp_fs_pvt_mem_addr;
 
+/*
+ * Cached value of SP_VS_OBJ_START_REG and SP_FS_OBJ_START_REG.
+ */
+static unsigned int sp_vs_obj_start_reg;
+static unsigned int sp_fs_obj_start_reg;
+
+/*
+ * Each load state block has two possible types.  Each type has a different
+ * number of dwords per unit.  Use this handy lookup table to make sure
+ * we dump the right amount of data from the indirect buffer
+ */
 
 static int load_state_unit_sizes[7][2] = {
 	{ 2, 4 },
@@ -292,7 +303,27 @@ static int ib_parse_draw_indx(struct kgsl_device *device, unsigned int *pkt,
 		sp_fs_pvt_mem_addr = 0;
 	}
 
-	
+	if (sp_vs_obj_start_reg) {
+		ret = kgsl_snapshot_get_object(device, ptbase,
+			sp_vs_obj_start_reg & 0xFFFFFFE0, 0,
+			SNAPSHOT_GPU_OBJECT_GENERIC);
+		if (ret < 0)
+			return -EINVAL;
+		snapshot_frozen_objsize += ret;
+		sp_vs_obj_start_reg = 0;
+	}
+
+	if (sp_fs_obj_start_reg) {
+		ret = kgsl_snapshot_get_object(device, ptbase,
+			sp_fs_obj_start_reg & 0xFFFFFFE0, 0,
+			SNAPSHOT_GPU_OBJECT_GENERIC);
+		if (ret < 0)
+			return -EINVAL;
+		snapshot_frozen_objsize += ret;
+		sp_fs_obj_start_reg = 0;
+	}
+
+	/* Finally: VBOs */
 
 	
 	for (i = 0; i < (vfd_control_0) >> 27; i++) {
@@ -394,6 +425,12 @@ static void ib_parse_type0(struct kgsl_device *device, unsigned int *ptr,
 				break;
 			case A3XX_SP_FS_PVT_MEM_ADDR_REG:
 				sp_fs_pvt_mem_addr = ptr[i + 1];
+				break;
+			case A3XX_SP_VS_OBJ_START_REG:
+				sp_vs_obj_start_reg = ptr[i + 1];
+				break;
+			case A3XX_SP_FS_OBJ_START_REG:
+				sp_fs_obj_start_reg = ptr[i + 1];
 				break;
 			}
 		}
