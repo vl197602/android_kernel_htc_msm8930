@@ -663,26 +663,12 @@ static int kgsl_pwrctrl_gpu_available_frequencies_show(
 	return num_chars;
 }
 
-static int kgsl_pwrctrl_gputime_in_state_show(struct device *dev,
+static int kgsl_pwrctrl_reset_count_show(struct device *dev,
 					struct device_attribute *attr,
 					char *buf)
 {
-	ssize_t len = 0;
-	int i;
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
-
-	if (device == NULL)
-		return 0;
-
-	if (test_bit(KGSL_PWRFLAGS_CLK_ON, &device->pwrctrl.power_flags) || (device->state == KGSL_STATE_NAP))
-		gpufreq_stats_update(0, device->pwrctrl.active_pwrlevel, device->pwrctrl.active_pwrlevel);
-
-	for (i = 0; i < device->pwrctrl.num_pwrlevels; i++) {
-		len += sprintf(buf + len, "%u %llu\n", device->pwrctrl.pwrlevels[i].gpu_freq,
-			(unsigned long long)jiffies_to_clock_t(gputime_in_state[i]));
-	}
-
-	return len;
+	return snprintf(buf, PAGE_SIZE, "%d\n", device->reset_counter);
 }
 
 DEVICE_ATTR(gpuclk, 0644, kgsl_pwrctrl_gpuclk_show, kgsl_pwrctrl_gpuclk_store);
@@ -710,9 +696,9 @@ DEVICE_ATTR(thermal_pwrlevel, 0644,
 DEVICE_ATTR(num_pwrlevels, 0444,
 	kgsl_pwrctrl_num_pwrlevels_show,
 	NULL);
-DEVICE_ATTR(gpubusy_time, 0644, kgsl_pwrctrl_gpubusy_time_show, NULL);
-DEVICE_ATTR(gpubusy_time_in_state, 0644, kgsl_pwrctrl_gpubusy_time_in_state_show, NULL);
-DEVICE_ATTR(gputime_in_state, 0444, kgsl_pwrctrl_gputime_in_state_show, NULL);
+DEVICE_ATTR(reset_count, 0444,
+	kgsl_pwrctrl_reset_count_show,
+	NULL);
 
 static const struct device_attribute *pwrctrl_attr_list[] = {
 	&dev_attr_gpuclk,
@@ -726,11 +712,7 @@ static const struct device_attribute *pwrctrl_attr_list[] = {
 	&dev_attr_min_pwrlevel,
 	&dev_attr_thermal_pwrlevel,
 	&dev_attr_num_pwrlevels,
-
-	
-	&dev_attr_gpubusy_time,
-	&dev_attr_gpubusy_time_in_state,
-	&dev_attr_gputime_in_state,
+	&dev_attr_reset_count,
 	NULL
 };
 

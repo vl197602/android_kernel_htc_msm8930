@@ -194,12 +194,7 @@ struct kgsl_device {
 	int pm_regs_enabled;
 	int pm_ib_enabled;
 
-	
-	struct kgsl_gpubusy gputime;
-	struct kgsl_gpubusy gputime_in_state[KGSL_MAX_PWRLEVELS];
-#ifdef CONFIG_MSM_KGSL_GPU_USAGE
-	struct kgsl_process_private *current_process_priv;
-#endif
+	int reset_counter; /* Track how many GPU core resets have occured */
 };
 
 void kgsl_process_events(struct work_struct *work);
