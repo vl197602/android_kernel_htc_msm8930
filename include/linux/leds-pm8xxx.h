@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -54,24 +54,37 @@ enum pm8xxx_led_modes {
 int pm8xxx_led_config(enum pm8xxx_leds led_id,
 		enum pm8xxx_led_modes led_mode, int max_current);
 
-#define LED_PWM_FUNCTION	(1 << 0)
-#define LED_BLINK_FUNCTION	(1 << 1)
-#define LED_BRETH_FUNCTION	(1 << 2)
+/* over voltage protection threshold */
+enum wled_ovp_threshold {
+	WLED_OVP_35V,
+	WLED_OVP_32V,
+	WLED_OVP_29V,
+	WLED_OVP_27V,
+};
 
-struct pm8xxx_led_configure {
-	const char	*name;
-	int		flags;
-	int 		period_us;
-	int 		start_index;
-	int 		duites_size;
-	int 		duty_time_ms;
-	int 		lut_flag;
-	int 		led_sync;
-	int		out_current;
-	int		function_flags;
-	int		duties[64];
-	void 		(*gpio_status_switch)(bool);
-	int 		(*lpm_power)(int on);
+/**
+ *  wled_config_data - wled configuration data
+ *  @num_strings - number of wled strings supported
+ *  @ovp_val - over voltage protection threshold
+ *  @boost_curr_lim - boot current limit
+ *  @cp_select - high pole capacitance
+ *  @ctrl_delay_us - delay in activation of led
+ *  @dig_mod_gen_en - digital module generator
+ *  @cs_out_en - current sink output enable
+ *  @op_fdbck - selection of output as feedback for the boost
+ *  @cabc_en - enable cabc for backlight pwm control
+ */
+struct wled_config_data {
+	u8	num_strings;
+	u8	ovp_val;
+	u8	boost_curr_lim;
+	u8	cp_select;
+	u8	ctrl_delay_us;
+	u16	comp_res_val;
+	bool	dig_mod_gen_en;
+	bool	cs_out_en;
+	bool	op_fdbck;
+	bool	cabc_en;
 };
 
 struct pm8xxx_led_platform_data {
