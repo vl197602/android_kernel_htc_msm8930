@@ -120,6 +120,120 @@ static struct dmx_frontend *get_fe(struct dmx_demux *demux, int type)
 	return NULL;
 }
 
+static int dvr_input_thread_entry(void *arg)
+{
+	struct dmxdev *dmxdev = arg;
+	struct dvb_ringbuffer *src = &dmxdev->dvr_input_buffer;
+	int ret;
+	size_t todo;
+	int bytes_written;
+	size_t split;
+
+	while (1) {
+		/* wait for input */
+		ret = wait_event_interruptible(
+			src->queue,
+			(dvb_ringbuffer_avail(src) > 188) ||
+			(src->error != 0) ||
+			dmxdev->dvr_in_exit);
+
+		if (ret < 0)
+			break;
+
+		spin_lock(&dmxdev->dvr_in_lock);
+
+		if (dmxdev->exit || dmxdev->dvr_in_exit) {
+			spin_unlock(&dmxdev->dvr_in_lock);
+			break;
+		}
+
+		if (src->error) {
+			spin_unlock(&dmxdev->dvr_in_lock);
+			wake_up_all(&src->queue);
+			break;
+		}
+
+		if (!src->data) {
+			spin_unlock(&dmxdev->dvr_in_lock);
+			continue;
+		}
+
+		dmxdev->dvr_processing_input = 1;
+
+		ret = dvb_ringbuffer_avail(src);
+		todo = ret;
+
+		split = (src->pread + ret > src->size) ?
+				src->size - src->pread :
+				0;
+		/*
+		 * In DVR PULL mode, write might block.
+		 * Lock on DVR buffer is released before calling to
+		 * write, if DVR was released meanwhile, dvr_in_exit is
+		 * prompted. Lock is acquired when updating the read pointer
+		 * again to preserve read/write pointers consistency
+		 */
+		if (split > 0) {
+			spin_unlock(&dmxdev->dvr_in_lock);
+			bytes_written = dmxdev->demux->write(dmxdev->demux,
+						src->data + src->pread,
+						split);
+
+			if (bytes_written < 0) {
+				printk(KERN_ERR "dmxdev: dvr write error %d\n",
+					bytes_written);
+				continue;
+			}
+
+			if (dmxdev->dvr_in_exit)
+				break;
+
+			spin_lock(&dmxdev->dvr_in_lock);
+
+			todo -= bytes_written;
+			DVB_RINGBUFFER_SKIP(src, bytes_written);
+			if (bytes_written < split) {
+				dmxdev->dvr_processing_input = 0;
+				spin_unlock(&dmxdev->dvr_in_lock);
+				wake_up_all(&src->queue);
+				continue;
+			}
+
+		}
+
+		spin_unlock(&dmxdev->dvr_in_lock);
+		bytes_written = dmxdev->demux->write(dmxdev->demux,
+					src->data + src->pread, todo);
+
+		if (bytes_written < 0) {
+			printk(KERN_ERR "dmxdev: dvr write error %d\n",
+				bytes_written);
+			continue;
+		}
+
+		if (dmxdev->dvr_in_exit)
+			break;
+
+		spin_lock(&dmxdev->dvr_in_lock);
+
+		DVB_RINGBUFFER_SKIP(src, bytes_written);
+		dmxdev->dvr_processing_input = 0;
+		spin_unlock(&dmxdev->dvr_in_lock);
+
+		wake_up_all(&src->queue);
+	}
+
+	set_current_state(TASK_INTERRUPTIBLE);
+	while (!kthread_should_stop()) {
+		schedule();
+		set_current_state(TASK_INTERRUPTIBLE);
+	}
+	set_current_state(TASK_RUNNING);
+
+	return 0;
+}
+
+
 static int dvb_dvr_open(struct inode *inode, struct file *file)
 {
 	struct dvb_device *dvbdev = file->private_data;
