@@ -1976,6 +1976,8 @@ static int msm_open(struct file *f)
 		}
 	}
 	pcam_inst->vbqueue_initialized = 0;
+	pcam_inst->sequence = 0;
+	pcam_inst->avtimerOn = 0;
 	rc = 0;
 
 	f->private_data = &pcam_inst->eventHandle;
@@ -2238,6 +2240,7 @@ static int msm_close(struct file *f)
 	}
 
 	pcam_inst->streamon = 0;
+	pcam_inst->avtimerOn = 0;
 	pcam->use_count--;
 	pcam->dev_inst_map[pcam_inst->image_mode] = NULL;
 

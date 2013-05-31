@@ -63,19 +63,12 @@
 #define MAX_NUM_AXI_DEV 2
 #define MAX_NUM_VPE_DEV 1
 
-enum msm_cam_subdev_type {
-	CSIPHY_DEV,
-	CSID_DEV,
-	CSIC_DEV,
-	ISPIF_DEV,
-	VFE_DEV,
-	AXI_DEV,
-	VPE_DEV,
-	SENSOR_DEV,
-	GESTURE_DEV,
-};
+/*AVTimer*/
+#define AVTIMER_MSW_PHY_ADDR  0x2800900C
+#define AVTIMER_LSW_PHY_ADDR  0x28009008
+#define AVTIMER_ITERATION_CTR 16
 
-
+/* msm queue management APIs*/
 
 #define msm_dequeue(queue, member) ({	   \
 	unsigned long flags;		  \
@@ -335,8 +328,12 @@ struct msm_cam_v4l2_dev_inst {
 	int is_mem_map_inst;
 	struct img_plane_info plane_info;
 	int vbqueue_initialized;
-    struct mutex inst_lock;
-	int no_free_buf_cnt; 
+	struct mutex inst_lock;
+	uint32_t inst_handle;
+	uint32_t sequence;
+	uint8_t avtimerOn;
+	void __iomem *p_avtimer_msw;
+	void __iomem *p_avtimer_lsw;
 };
 
 struct msm_cam_mctl_node {
@@ -542,12 +539,8 @@ struct msm_frame_buffer *msm_mctl_buf_find(
 	struct msm_cam_v4l2_dev_inst *pcam_inst, int del_buf,
 	int msg_type, struct msm_free_buf *fbuf);
 void msm_mctl_gettimeofday(struct timeval *tv);
-struct msm_frame_buffer *msm_mctl_get_free_buf(
-		struct msm_cam_media_controller *pmctl,
-		int msg_type);
-int msm_mctl_put_free_buf(
-		struct msm_cam_media_controller *pmctl,
-		int msg_type, struct msm_frame_buffer *buf);
+void msm_mctl_getAVTimer(struct msm_cam_v4l2_dev_inst *pcam_inst,
+        struct timeval *tv);
 int msm_mctl_check_pp(struct msm_cam_media_controller *p_mctl,
 		int msg_type, int *pp_divert_type, int *pp_type);
 int msm_mctl_do_pp_divert(
