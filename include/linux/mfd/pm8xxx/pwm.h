@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -31,6 +31,20 @@
 
 #define PM_PWM_LUT_NO_TABLE	0x100
 
+#define PM_PWM_BANK_LO		0x1000
+#define PM_PWM_BANK_HI		0x2000
+
+/**
+ * PWM frequency/period control
+ *
+ * PWM Frequency = ClockFrequency / (N * T)
+ *   or
+ * PWM Period = Clock Period * (N * T)
+ *   where
+ * N = 2^9 or 2^6 for 9-bit or 6-bit PWM size
+ * T = Pre-divide * 2^m, m = 0..7 (exponent)
+ *
+ */
 
 enum pm_pwm_size {
 	PM_PWM_SIZE_6BIT =	6,
