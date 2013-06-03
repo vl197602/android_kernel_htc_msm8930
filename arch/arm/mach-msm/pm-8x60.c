@@ -54,48 +54,8 @@
 #include "spm.h"
 #include "timer.h"
 #include "pm-boot.h"
-#ifdef CONFIG_TRACING_IRQ_PWR
-#include "../../../drivers/gpio/gpio-msm-common.h"
-#define PWR_KEY_MSMz 26
-#endif
-
-#ifdef CONFIG_MSM_WATCHDOG
-#include <mach/msm_watchdog.h>
-#endif
-#include <mach/msm_xo.h>
-#include <linux/wakelock.h>
-#include <linux/cpufreq.h>
-
-#ifdef CONFIG_GPIO_MSM_V2
-#include <linux/console.h>
-#include "../../../drivers/gpio/gpio-msm-common.h"
-#endif
-
-#ifdef pr_err
-#undef pr_err
-#endif
-#define pr_err(fmt, args...) \
-	printk(KERN_ERR "[PM] " pr_fmt(fmt), ## args)
-
-#ifdef pr_warn
-#undef pr_warn
-#endif
-#define pr_warn(fmt, args...) \
-	printk(KERN_WARNING "[PM] " pr_fmt(fmt), ## args)
-
-#ifdef pr_info
-#undef pr_info
-#endif
-#define pr_info(fmt, args...) \
-	printk(KERN_INFO "[PM] " pr_fmt(fmt), ## args)
-
-#if defined(DEBUG)
-#ifdef pr_debug
-#undef pr_debug
-#endif
-#define pr_debug(fmt, args...) \
-	printk(KERN_DEBUG "[PM] " pr_fmt(fmt), ## args)
-#endif
+#include <mach/event_timer.h>
+#include <linux/cpu_pm.h>
 
 
 enum {
@@ -546,6 +506,9 @@ static bool __ref msm_pm_spm_power_collapse(
 		pr_info("CPU%u: %s: notify_rpm %d\n",
 			cpu, __func__, (int) notify_rpm);
 
+	if (from_idle == true)
+		cpu_pm_enter();
+
 	ret = msm_spm_set_low_power_mode(
 			MSM_SPM_MODE_POWER_COLLAPSE, notify_rpm);
 	WARN_ON(ret);
@@ -642,6 +605,10 @@ static bool __ref msm_pm_spm_power_collapse(
 
 	ret = msm_spm_set_low_power_mode(MSM_SPM_MODE_CLOCK_GATING, false);
 	WARN_ON(ret);
+
+	if (from_idle == true)
+		cpu_pm_exit();
+
 	return collapsed;
 }
 
