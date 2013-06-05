@@ -159,7 +159,7 @@ static ssize_t diag_dbgfs_read_table(struct file *file, char __user *ubuf,
 	}
 
 	buf = kzalloc(sizeof(char) * buf_size, GFP_KERNEL);
-	if (!buf) {
+	if (ZERO_OR_NULL_PTR(buf)) {
 		pr_err("diag: %s, Error allocating memory\n", __func__);
 		return -ENOMEM;
 	}
@@ -205,8 +205,13 @@ static ssize_t diag_dbgfs_read_bridge(struct file *file, char __user *ubuf,
 	char *buf;
 	int ret;
 
-	buf = kzalloc(sizeof(char) * DEBUG_BUF_SIZE, GFP_KERNEL);
-	if (!buf) {
+	if (diag_dbgfs_finished) {
+		diag_dbgfs_finished = 0;
+		return 0;
+	}
+
+	buf = kzalloc(sizeof(char) * buf_size, GFP_KERNEL);
+	if (ZERO_OR_NULL_PTR(buf)) {
 		pr_err("diag: %s, Error allocating memory\n", __func__);
 		return -ENOMEM;
 	}

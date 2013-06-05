@@ -162,22 +162,25 @@ static void diag_smd_cntl_send_req(int proc_num)
 				 __func__, type, smd_info->peripheral);
 			break;
 		}
-	}
-	if (buf && r > 0) {
-		smd_read(smd_ch, buf, r);
-		while (count_bytes + HDR_SIZ <= r) {
-			type = *(uint32_t *)(buf);
-			data_len = *(uint32_t *)(buf + 4);
-			if (type < DIAG_CTRL_MSG_REG ||
-					 type > DIAG_CTRL_MSG_F3_MASK_V2) {
-				pr_alert("diag: Invalid Msg type %d proc %d",
-					 type, proc_num);
-				break;
-			}
-			if (data_len < 0 || data_len > r) {
-				pr_alert("diag: Invalid data len %d proc %d",
-					 data_len, proc_num);
-				break;
+		if (data_len < 0 || data_len > total_recd) {
+			pr_alert("diag: In %s, Invalid data len %d, total_recd: %d, proc %d",
+				 __func__, data_len, total_recd,
+				 smd_info->peripheral);
+			break;
+		}
+		count_bytes = count_bytes+HDR_SIZ+data_len;
+		if (type == DIAG_CTRL_MSG_REG && total_recd >= count_bytes) {
+			msg = buf+HDR_SIZ;
+			range = buf+HDR_SIZ+
+					sizeof(struct diag_ctrl_msg);
+			pkt_params->count = msg->count_entries;
+			pkt_params->params = kzalloc(pkt_params->count *
+				sizeof(struct bindpkt_params), GFP_KERNEL);
+			if (ZERO_OR_NULL_PTR(pkt_params->params)) {
+				pr_alert("diag: In %s, Memory alloc fail\n",
+					__func__);
+				kfree(pkt_params);
+				return flag;
 			}
 			count_bytes = count_bytes+HDR_SIZ+data_len;
 			if (type == DIAG_CTRL_MSG_REG && r >= count_bytes) {
