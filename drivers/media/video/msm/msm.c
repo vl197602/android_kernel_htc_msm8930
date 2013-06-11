@@ -1281,8 +1281,8 @@ static int msm_camera_v4l2_streamoff(struct file *f, void *pctx,
 	if (rc < 0)
 		pr_err("%s: hw failed to stop streaming\n", __func__);
 
-	
-	rc = vb2_streamoff(&pcam_inst->vid_bufq, buf_type);
+	/* stop buffer streaming */
+	vb2_streamoff(&pcam_inst->vid_bufq, buf_type);
 	D("%s, videobuf_streamoff returns %d\n", __func__, rc);
 	mutex_unlock(&pcam_inst->inst_lock);
 	mutex_unlock(&pcam->vid_lock);

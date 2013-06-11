@@ -446,6 +446,23 @@ struct msm_camera_cfg_cmd {
 #define CMD_STATS_BG_BUF_RELEASE 56
 #define CMD_STATS_BF_BUF_RELEASE 57
 #define CMD_STATS_BHIST_BUF_RELEASE 58
+#define CMD_VFE_PIX_SOF_COUNT_UPDATE 59
+#define CMD_VFE_COUNT_PIX_SOF_ENABLE 60
+
+#define CMD_AXI_CFG_PRIM               BIT(8)
+#define CMD_AXI_CFG_PRIM_ALL_CHNLS     BIT(9)
+#define CMD_AXI_CFG_SEC                BIT(10)
+#define CMD_AXI_CFG_SEC_ALL_CHNLS      BIT(11)
+#define CMD_AXI_CFG_TERT1              BIT(12)
+#define CMD_AXI_CFG_TERT2              BIT(13)
+#define CMD_AXI_CFG_TERT3              BIT(14)
+
+#define CMD_AXI_START  0xE1
+#define CMD_AXI_STOP   0xE2
+#define CMD_AXI_RESET  0xE3
+#define CMD_AXI_ABORT  0xE4
+#define CMD_AXI_STOP_RECOVERY  0xE5
+
 
 struct msm_vfe_cfg_cmd {
 	int cmd_type;
