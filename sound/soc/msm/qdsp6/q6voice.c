@@ -3176,8 +3176,9 @@ int voc_enable_cvp(uint16_t session_id)
 		if (common.ec_ref_ext == true) {
 			ret = voice_send_set_device_cmd_v2(v);
 			if (ret < 0) {
-				pr_err("%s:  set device V2 failed " \
-					"rc =%x\n", __func__, ret);
+				pr_err("%s: set device V2 failed\n"
+				       "rc =%x\n", __func__, ret);
+				goto fail;
 			}
 		} else {
 			ret = voice_send_set_device_cmd(v);
