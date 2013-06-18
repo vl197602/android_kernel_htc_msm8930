@@ -326,6 +326,10 @@ obj-$(CONFIG_MACH_MPQ8064_DTV) += board-8064-all.o board-8064-regulator.o
 obj-$(CONFIG_MACH_MONARUDO) += board-monarudo-all.o board-monarudo-regulator.o
 obj-$(CONFIG_MACH_DELUXE_J) += board-deluxe_j-all.o board-deluxe_j-regulator.o
 obj-$(CONFIG_MACH_IMPRESSION_J) += board-impression_j-all.o board-impression_j-regulator.o
+obj-$(CONFIG_MACH_M7_UL) += board-m7-all.o board-m7-regulator.o
+ifdef CONFIG_MACH_M7_UL
+obj-$(CONFIG_BT_MSM_SLEEP) += board-m7-bluesleep.o
+endif
 
 obj-$(CONFIG_MACH_MONARUDO) += htc_util.o
 obj-$(CONFIG_MACH_DELUXE_J) += htc_util.o ADP5585_ioextender.o
@@ -351,21 +355,12 @@ obj-$(CONFIG_MACH_VALENTE_WX) += board-valente_wx-keypad.o
 obj-$(CONFIG_MACH_VALENTE_WX) += htc_bdaddress.o
 obj-$(CONFIG_MACH_VALENTE_WX) += htc_util.o
 
-
-
-
-
 obj-$(CONFIG_MACH_M4_UL) += board-m4.o board-m4-all.o board-m4-regulator.o board-m4-audio.o
 obj-$(CONFIG_MACH_M4_UL) += htc_bdaddress.o board-m4-rfkill.o htc_sleep_clk.o htc_util.o board-m4-camera.o
 #obj-$(CONFIG_MACH_M4_UL) += htc_acoustic.o
 obj-$(CONFIG_MACH_M4_UL) += board-m4-keypad.o
 obj-$(CONFIG_MACH_M4_UL) += board-m4-mmc.o board-m4-wifi.o htc_wifi_nvs.o
 
-
-
-
-
-obj-$(CONFIG_ARCH_MSM9615) += board-9615.o devices-9615.o board-9615-regulator.o board-9615-gpiomux.o board-9615-storage.o board-9615-display.o
 obj-$(CONFIG_ARCH_MSM9615) += clock-local.o clock-9615.o acpuclock-9615.o clock-rpm.o clock-pll.o
 obj-$(CONFIG_ARCH_MSM8974) += board-8974.o board-dt.o board-8974-regulator.o board-8974-gpiomux.o
 obj-$(CONFIG_ARCH_MSM8974) += acpuclock-krait.o acpuclock-8974.o
