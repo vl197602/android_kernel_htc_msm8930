@@ -144,6 +144,8 @@ struct kgsl_memdesc_ops {
 #define KGSL_MEMDESC_GLOBAL BIT(1)
 /* The memdesc is frozen during a snapshot */
 #define KGSL_MEMDESC_FROZEN BIT(2)
+/* The memdesc is mapped into a pagetable */
+#define KGSL_MEMDESC_MAPPED BIT(3)
 
 struct kgsl_memdesc {
 	struct kgsl_pagetable *pagetable;
@@ -194,6 +196,8 @@ struct kgsl_mem_entry {
 	unsigned int id;
 	unsigned int context_id;
 	struct kgsl_process_private *priv;
+	/* Initialized to 0, set to 1 when entry is marked for freeing */
+	int pending_free;
 };
 
 #ifdef CONFIG_MSM_KGSL_MMU_PAGE_FAULT
