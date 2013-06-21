@@ -478,6 +478,21 @@ int vpe_enable(uint32_t clk_rate)
 
 	rc = msm_cam_clk_enable(&vpe_ctrl->pdev->dev, vpe_clk_info,
 			vpe_ctrl->vpe_clk, ARRAY_SIZE(vpe_clk_info), 1);
+	if (rc < 0)
+		goto vpe_clk_failed;
+
+#ifdef CONFIG_MSM_IOMMU
+	if (mctl->domain == NULL) {
+		pr_err("%s: iommu domain not initialized\n", __func__);
+		rc = -EINVAL;
+		goto src_attach_failed;
+	}
+	rc = iommu_attach_device(mctl->domain, vpe_ctrl->iommu_ctx_src);
+	if (rc < 0) {
+		pr_err("%s: Device attach failed\n", __func__);
+		goto src_attach_failed;
+	}
+	rc = iommu_attach_device(mctl->domain, vpe_ctrl->iommu_ctx_dst);
 	if (rc < 0) {
 		pr_err("%s: VPE clk enable failed\n", __func__);
 		goto vpe_clk_failed;
