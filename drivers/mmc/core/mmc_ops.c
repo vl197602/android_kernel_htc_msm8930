@@ -340,8 +340,22 @@ int mmc_spi_set_crc(struct mmc_host *host, int use_crc)
 	return err;
 }
 
-int mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
-	       unsigned int timeout_ms)
+/**
+ *	__mmc_switch - modify EXT_CSD register
+ *	@card: the MMC card associated with the data transfer
+ *	@set: cmd set values
+ *	@index: EXT_CSD register index
+ *	@value: value to program into EXT_CSD register
+ *	@timeout_ms: timeout (ms) for operation performed by register write,
+ *                   timeout of zero implies maximum possible timeout
+ *	@use_busy_signal: use the busy signal as response type
+ *	@ignore_timeout: set this flag only for commands which can be HPIed
+ *
+ *	Modifies the EXT_CSD register for selected card.
+ */
+int __mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
+		 unsigned int timeout_ms, bool use_busy_signal,
+		 bool ignore_timeout)
 {
 	int err;
 	struct mmc_command cmd = {0};
@@ -366,6 +380,7 @@ int mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	cmd.flags = MMC_RSP_SPI_R1B | MMC_RSP_R1B | MMC_CMD_AC;
 #endif
 	cmd.cmd_timeout_ms = timeout_ms;
+	cmd.ignore_timeout = ignore_timeout;
 
 	err = mmc_wait_for_cmd(card->host, &cmd, MMC_CMD_RETRIES);
 	if (err)
@@ -401,6 +416,13 @@ int mmc_switch(struct mmc_card *card, u8 set, u8 index, u8 value,
 	return 0;
 }
 EXPORT_SYMBOL_GPL(mmc_switch);
+
+int mmc_switch_ignore_timeout(struct mmc_card *card, u8 set, u8 index, u8 value,
+		unsigned int timeout_ms)
+{
+	return __mmc_switch(card, set, index, value, timeout_ms, true, true);
+}
+EXPORT_SYMBOL(mmc_switch_ignore_timeout);
 
 int mmc_send_status(struct mmc_card *card, u32 *status)
 {

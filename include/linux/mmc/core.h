@@ -69,7 +69,10 @@ struct mmc_command {
 	unsigned int		error;		
 
 
-	unsigned int		cmd_timeout_ms;	
+	unsigned int		cmd_timeout_ms;	/* in milliseconds */
+	bool			bkops_busy;
+	/* Set this flag only for commands which can be HPIed */
+	bool			ignore_timeout;
 
 	struct mmc_data		*data;		
 	struct mmc_request	*mrq;		
@@ -123,6 +126,8 @@ extern int mmc_app_cmd(struct mmc_host *, struct mmc_card *);
 extern int mmc_wait_for_app_cmd(struct mmc_host *, struct mmc_card *,
 	struct mmc_command *, int);
 extern int mmc_switch(struct mmc_card *, u8, u8, u8, unsigned int);
+extern int mmc_switch_ignore_timeout(struct mmc_card *, u8, u8, u8,
+				     unsigned int);
 extern int mmc_send_ext_csd(struct mmc_card *card, u8 *ext_csd);
 extern void mmc_start_bkops(struct mmc_card *card);
 #define MMC_ERASE_ARG		0x00000000

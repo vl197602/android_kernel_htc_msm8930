@@ -410,14 +410,20 @@ static void mmc_wait_for_req_done(struct mmc_host *host,
 		wait_for_completion_io(&mrq->completion);	
 
 		cmd = mrq->cmd;
-		if (is_wifi_mmc_host(host)) {
-			if (!cmd->error || !cmd->retries)
+
+		/*
+		 * If host has timed out waiting for the commands which can be
+		 * HPIed then let the caller handle the timeout error as it may
+		 * want to send the HPI command to bring the card out of
+		 * programming state.
+		 */
+		if (cmd->ignore_timeout && cmd->error == -ETIMEDOUT)
 			break;
-		} else {
-			if (!cmd->error || !cmd->retries ||
-				mmc_card_removed(host->card))
-				break;
-		}
+
+		if (!cmd->error || !cmd->retries ||
+		    mmc_card_removed(host->card))
+			break;
+
 		pr_debug("%s: req failed (CMD%u): %d, retrying...\n",
 			 mmc_hostname(host), cmd->opcode, cmd->error);
 		cmd->retries--;
@@ -2709,7 +2715,7 @@ int mmc_flush_cache(struct mmc_card *card)
 	if (mmc_card_mmc(card) &&
 			(card->ext_csd.cache_size > 0) &&
 			(card->ext_csd.cache_ctrl & 1)) {
-		err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+		err = mmc_switch_ignore_timeout(card, EXT_CSD_CMD_SET_NORMAL,
 				EXT_CSD_FLUSH_CACHE, 1, 0);
 		if (err)
 			pr_err("%s: cache flush error %d\n",
@@ -2737,7 +2743,8 @@ int mmc_cache_ctrl(struct mmc_host *host, u8 enable)
 
 		if (card->ext_csd.cache_ctrl ^ enable) {
 			timeout = enable ? card->ext_csd.generic_cmd6_time : 0;
-			err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
+			err = mmc_switch_ignore_timeout(card,
+					EXT_CSD_CMD_SET_NORMAL,
 					EXT_CSD_CACHE_CTRL, enable, timeout);
 			if (err)
 				pr_err("%s: cache %s error %d\n",
