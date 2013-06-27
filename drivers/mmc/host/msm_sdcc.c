@@ -5122,9 +5122,11 @@ static void msmsdcc_req_tout_timer_hdlr(unsigned long data)
 	mrq = host->curr.mrq;
 
 	if (mrq && mrq->cmd) {
-		printk("%s: CMD%d: Request timeout\n", mmc_hostname(host->mmc),
-				mrq->cmd->opcode);
-		msmsdcc_dump_sdcc_state(host);
+		if (!mrq->cmd->ignore_timeout) {
+			pr_info("%s: CMD%d: Request timeout\n",
+				mmc_hostname(host->mmc), mrq->cmd->opcode);
+			msmsdcc_dump_sdcc_state(host);
+		}
 
 		if (!mrq->cmd->error)
 			mrq->cmd->error = -ETIMEDOUT;
