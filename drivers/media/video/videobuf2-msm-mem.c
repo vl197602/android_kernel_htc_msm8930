@@ -194,7 +194,7 @@ int videobuf2_pmem_contig_user_get(struct videobuf2_contig_pmem *mem,
 		return 0;
 	}
 	D("ionflag=%ld\n", ionflag);
-	vaddr = ion_map_kernel(client, mem->ion_handle, ionflag);
+	vaddr = ion_map_kernel(client, mem->ion_handle);
 	if (IS_ERR_OR_NULL(vaddr)) {
 		pr_err("%s: could not get virtual address\n", __func__);
 		return 0;

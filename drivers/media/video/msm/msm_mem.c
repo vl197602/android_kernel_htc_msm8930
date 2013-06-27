@@ -148,7 +148,7 @@ static int msm_pmem_table_add(struct hlist_head *ptype,
 		return 0;
 	}
 	D("ionflag=%ld\n", ionflag);
-	vaddr = ion_map_kernel(client, region->handle, ionflag);
+	vaddr = ion_map_kernel(client, region->handle);
 	if (IS_ERR_OR_NULL(vaddr)) {
 		pr_err("%s: could not get virtual address\n", __func__);
 		return 0;

@@ -214,7 +214,6 @@ obj-y	+= davinci/
 
 ifeq ($(CONFIG_MSM_CAMERA),y)
 obj-$(CONFIG_MSM_CAMERA) += msm/
-endif
 obj-$(CONFIG_FB_MSM_WRITEBACK_MSM_PANEL) += msm/wfd/
 obj-$(CONFIG_ARCH_OMAP)	+= omap/
 #obj-$(CONFIG_MSM_VIDC) += msm_vidc/
