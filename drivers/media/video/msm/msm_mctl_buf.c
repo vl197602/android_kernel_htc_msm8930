@@ -578,52 +578,44 @@ struct msm_cam_v4l2_dev_inst *msm_mctl_get_pcam_inst(
 	struct msm_cam_v4l2_device *pcam = pmctl->pcam_ptr;
 	int idx;
 
-	
-	if (!pcam) {
-		pr_err("%s pcam is null\n", __func__);
-		return pcam_inst;
-	}
-	
-
-	if (image_mode >= 0) {
-		if (pmctl->vfe_output_mode == VFE_OUTPUTS_MAIN_AND_THUMB
-		|| pmctl->vfe_output_mode == VFE_OUTPUTS_THUMB_AND_MAIN) {
-			if (pcam->mctl_node.dev_inst_map[image_mode]
-			&& is_buffer_queued(pcam, image_mode)) {
-				idx =
-				pcam->mctl_node.dev_inst_map[image_mode]
-				->my_index;
-				pcam_inst = pcam->mctl_node.dev_inst[idx];
-				D("%s Found instance %p in mctl node device\n",
-				  __func__, pcam_inst);
-			} else if (pcam->dev_inst_map[image_mode]) {
-				idx = pcam->dev_inst_map[image_mode]->my_index;
-				pcam_inst = pcam->dev_inst[idx];
-				D("%s Found instance %p in video device",
-				__func__, pcam_inst);
-			}
-			else { 
-				pr_info("%s image_node %d\n", __func__, image_mode);
-				pr_info("%s mctl_node.dev_inst_map %p\n", __func__, pcam->mctl_node.dev_inst_map[image_mode]);
-				pr_info("%s dev_inst_map %p\n", __func__, pcam->dev_inst_map[image_mode]);
-			}
+	/* Get the pcam instance on based on the following rules:
+	 * If the lookup type is
+	 * - By instance handle:
+	 *    Either mctl_pp inst idx or video inst idx should be set.
+	 *    Try to get the MCTL_PP inst idx first, if its not set,
+	 *    fall back to video inst idx. Once we get the inst idx,
+	 *    get the pcam_inst from the corresponding dev_inst[] map.
+	 *    If neither are set, its a serious error, trigger a BUG_ON.
+	 * - By image mode:(Legacy usecase)
+	 *    If vfe is in configured in snapshot mode, first check if
+	 *    mctl pp node has a instance created for this image mode
+	 *    and if there is a buffer queued for that instance.
+	 *    If so, return that instance, otherwise get the pcam instance
+	 *    for this image_mode from the video instance.
+	 *    If the vfe is configured in any other mode, then first check
+	 *    if mctl pp node has a instance created for this image mode,
+	 *    otherwise get the pcam instance for this image mode from the
+	 *    video instance.
+	 */
+	if (buf_handle->buf_lookup_type == BUF_LOOKUP_BY_INST_HANDLE) {
+		if (buf_handle->inst_handle == 0) {
+			pr_err("%sBuffer instance handle not initialised",
+				 __func__);
+			return pcam_inst;
 		} else {
-			if (pcam->mctl_node.dev_inst_map[image_mode]) {
-				idx = pcam->mctl_node.dev_inst_map[image_mode]
-				->my_index;
+			idx = GET_MCTLPP_INST_IDX(buf_handle->inst_handle);
+			if (idx > MSM_DEV_INST_MAX) {
+				idx = GET_VIDEO_INST_IDX(
+					buf_handle->inst_handle);
+				if (idx > MSM_DEV_INST_MAX) {
+					pr_err("%s Invalid video inst idx %d",
+						__func__, idx);
+					return pcam_inst;
+				} else {
+					pcam_inst = pcam->dev_inst[idx];
+				}
+			} else {
 				pcam_inst = pcam->mctl_node.dev_inst[idx];
-				D("%s Found instance %p in mctl node device\n",
-				__func__, pcam_inst);
-			} else if (pcam->dev_inst_map[image_mode]) {
-				idx = pcam->dev_inst_map[image_mode]->my_index;
-				pcam_inst = pcam->dev_inst[idx];
-				D("%s Found instance %p in video device",
-				__func__, pcam_inst);
-			}
-			else { 
-				pr_info("%s image_node %d\n", __func__, image_mode);
-				pr_info("%s mctl_node.dev_inst_map %p\n", __func__, pcam->mctl_node.dev_inst_map[image_mode]);
-				pr_info("%s dev_inst_map %p\n", __func__, pcam->dev_inst_map[image_mode]);
 			}
 		}
 	} else
