@@ -107,6 +107,28 @@ struct kgsl_iommu_unit {
 	struct kgsl_memdesc reg_map;
 };
 
+/*
+ * struct kgsl_iommu - Structure holding iommu data for kgsl driver
+ * @dev: Array of kgsl_iommu_device which contain information about
+ * iommu contexts owned by graphics cores
+ * @unit_count: Number of IOMMU units that are available for this
+ * instance of the IOMMU driver
+ * @iommu_last_cmd_ts: The timestamp of last command submitted that
+ * aceeses iommu registers
+ * @clk_event_queued: Indicates whether an event to disable clocks
+ * is already queued or not
+ * @device: Pointer to kgsl device
+ * @ctx_offset: The context offset to be added to base address when
+ * accessing IOMMU registers
+ * @iommu_reg_list: List of IOMMU registers { offset, map, shift } array
+ * @sync_lock_vars: Pointer to the IOMMU spinlock for serializing access to the
+ * IOMMU registers
+ * @sync_lock_desc: GPU Memory descriptor for the memory containing the
+ * spinlocks
+ * @sync_lock_offset: The page offset within a page at which the sync
+ * variables are located
+ * @sync_lock_initialized: True if the sync_lock feature is enabled
+ */
 struct kgsl_iommu {
 	struct kgsl_iommu_unit iommu_units[KGSL_IOMMU_MAX_UNITS];
 	unsigned int unit_count;
@@ -117,6 +139,7 @@ struct kgsl_iommu {
 	struct kgsl_iommu_register_list *iommu_reg_list;
 	struct remote_iommu_petersons_spinlock *sync_lock_vars;
 	struct kgsl_memdesc sync_lock_desc;
+	unsigned int sync_lock_offset;
 	bool sync_lock_initialized;
 };
 
