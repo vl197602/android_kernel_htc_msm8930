@@ -781,12 +781,22 @@ int msm_gemini_ioctl_reset(struct msm_gemini_device *pgmn_dev,
 	return rc;
 }
 
-int msm_gemini_ioctl_test_dump_region(struct msm_gemini_device *pgmn_dev,
-	unsigned long arg)
+int msm_gemini_ioctl_set_outmode(struct msm_gemini_device *pgmn_dev,
+	void * __user arg)
 {
-	GMN_DBG("%s:%d] Enter\n", __func__, __LINE__);
-	msm_gemini_hw_region_dump(arg);
-	return 0;
+	int rc = 0;
+	enum msm_gmn_out_mode mode;
+
+	if (copy_from_user(&mode, arg, sizeof(mode))) {
+		GMN_PR_ERR("%s:%d] failed\n", __func__, __LINE__);
+		return -EFAULT;
+	}
+	GMN_DBG("%s:%d] mode %d", __func__, __LINE__, mode);
+
+	if ((mode == MSM_GMN_OUTMODE_FRAGMENTED)
+		||(mode == MSM_GMN_OUTMODE_SINGLE))
+		pgmn_dev->out_mode = mode;
+	return rc;
 }
 
 long __msm_gemini_ioctl(struct msm_gemini_device *pgmn_dev,
@@ -853,8 +863,8 @@ long __msm_gemini_ioctl(struct msm_gemini_device *pgmn_dev,
 		rc = msm_gemini_ioctl_hw_cmds(pgmn_dev, (void __user *) arg);
 		break;
 
-	case MSM_GMN_IOCTL_TEST_DUMP_REGION:
-		rc = msm_gemini_ioctl_test_dump_region(pgmn_dev, arg);
+	case MSM_GMN_IOCTL_SET_MODE:
+		rc = msm_gemini_ioctl_set_outmode(pgmn_dev, (void __user *)arg);
 		break;
 
 	default:
