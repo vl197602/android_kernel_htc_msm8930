@@ -1677,6 +1677,40 @@ u32 cfg80211_calculate_bitrate(struct rate_info *rate);
 u16 cfg80211_calculate_bitrate(struct rate_info *rate);
 #endif
 
+/**
+ * struct cfg80211_ft_event - FT Information Elements
+ * @ies: FT IEs
+ * @ies_len: length of the FT IE in bytes
+ * @target_ap: target AP's MAC address
+ * @ric_ies: RIC IE
+ * @ric_ies_len: length of the RIC IE in bytes
+ */
+struct cfg80211_ft_event_params {
+	const u8 *ies;
+	size_t ies_len;
+	const u8 *target_ap;
+	const u8 *ric_ies;
+	size_t ric_ies_len;
+};
+
+/**
+ * cfg80211_ft_event - notify userspace about FT IE and RIC IE
+ * @netdev: network device
+ * @ft_event: IE information
+ */
+void cfg80211_ft_event(struct net_device *netdev,
+		       struct cfg80211_ft_event_params *ft_event);
+
+
+
+/**
+ * cfg80211_ap_stopped - notify userspace that AP mode stopped
+ * @netdev: network device
+ * @gfp: context flags
+ */
+void cfg80211_ap_stopped(struct net_device *netdev, gfp_t gfp);
+
+/* Logging, debugging and troubleshooting/diagnostic helpers. */
 
 
 #define wiphy_printk(level, wiphy, format, args...)		\
