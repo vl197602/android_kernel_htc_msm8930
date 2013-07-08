@@ -840,82 +840,55 @@ static int msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 	struct msm_sensor_ctrl_t *s_ctrl = get_sctrl(p_mctl->sensor_sdev);
 	struct msm_camera_sensor_info *sinfo =
 		(struct msm_camera_sensor_info *) s_ctrl->sensordata;
-	struct msm_camera_device_platform_data *camdev = sinfo->pdata;
 
-#if 0 
-	v4l2_subdev_call(p_mctl->sensor_sdev, core, ioctl,
-		VIDIOC_MSM_SENSOR_RELEASE, NULL);
-#endif
-	if (camdev->is_ispif) {
-		v4l2_subdev_call(p_mctl->ispif_sdev, core, ioctl,
-			VIDIOC_MSM_ISPIF_RELEASE, NULL);
-	}
-	if (camdev->is_vpe) {
-		v4l2_subdev_call(p_mctl->vpe_sdev, core, ioctl,
-			VIDIOC_MSM_VPE_RELEASE, NULL);
-	}
-	if (p_mctl->axi_sdev) {
-		v4l2_subdev_call(p_mctl->axi_sdev, core, ioctl,
-			VIDIOC_MSM_AXI_RELEASE, NULL);
-	}
+	if (p_mctl->opencnt) {
+		v4l2_subdev_call(p_mctl->sensor_sdev, core, ioctl,
+			VIDIOC_MSM_SENSOR_RELEASE, NULL);
 
-	if (p_mctl->csiphy_sdev) {
-		v4l2_subdev_call(p_mctl->csiphy_sdev, core, ioctl,
-			VIDIOC_MSM_CSIPHY_RELEASE, NULL);
-	}
+		if (p_mctl->csic_sdev) {
+			v4l2_subdev_call(p_mctl->csic_sdev, core, ioctl,
+				VIDIOC_MSM_CSIC_RELEASE, NULL);
+		}
 
-	
-	if(p_mctl->actctrl->actrl_vcm_on_mut)
-		mutex_lock(p_mctl->actctrl->actrl_vcm_on_mut);
+		if (p_mctl->vpe_sdev) {
+			v4l2_subdev_call(p_mctl->vpe_sdev, core, ioctl,
+				VIDIOC_MSM_VPE_RELEASE, NULL);
+		}
 
-	if(p_mctl->actctrl->actrl_vcm_wa_camera_on)
-		*p_mctl->actctrl->actrl_vcm_wa_camera_on = STATUS_OFF;
-	
+		if (p_mctl->axi_sdev) {
+			v4l2_set_subdev_hostdata(p_mctl->axi_sdev, p_mctl);
+			v4l2_subdev_call(p_mctl->axi_sdev, core, ioctl,
+				VIDIOC_MSM_AXI_RELEASE, NULL);
+		}
 
-	if (p_mctl->actctrl->a_power_down)
-		p_mctl->actctrl->a_power_down(
-			p_mctl->sdata->actuator_info);
+		if (p_mctl->csiphy_sdev) {
+			v4l2_subdev_call(p_mctl->csiphy_sdev, core, ioctl,
+				VIDIOC_MSM_CSIPHY_RELEASE,
+				sinfo->sensor_platform_info->csi_lane_params);
+		}
 
-	if (p_mctl->sdata->use_rawchip) {
-#ifdef CONFIG_RAWCHIP
-		rawchip_release();
-#endif
-	}
+		if (p_mctl->csid_sdev) {
+			v4l2_subdev_call(p_mctl->csid_sdev, core, ioctl,
+				VIDIOC_MSM_CSID_RELEASE, NULL);
+		}
 
-	if (p_mctl->csid_sdev) {
-		v4l2_subdev_call(p_mctl->csid_sdev, core, ioctl,
-			VIDIOC_MSM_CSID_RELEASE, NULL);
-	}
+		if (p_mctl->act_sdev) {
+			v4l2_subdev_call(p_mctl->act_sdev, core, s_power, 0);
+			p_mctl->act_sdev = NULL;
+		}
 
-	if (p_mctl->act_sdev) {
-		v4l2_subdev_call(p_mctl->act_sdev, core, s_power, 0);
-		p_mctl->act_sdev = NULL;
-	}
-	
-	rc = msm_camio_probe_off(s_ctrl);
-	if (rc)
-		pr_info("%s msm_camio_probe_off rc(%d)\n", __func__, rc);
-	
+		v4l2_subdev_call(p_mctl->sensor_sdev, core, s_power, 0);
 
-	v4l2_subdev_call(p_mctl->sensor_sdev, core, s_power, 0);
+		v4l2_subdev_call(p_mctl->ispif_sdev,
+				core, ioctl, VIDIOC_MSM_ISPIF_REL, NULL);
 
-	
-	if(p_mctl->actctrl->actrl_vcm_on_mut)
-		mutex_unlock(p_mctl->actctrl->actrl_vcm_on_mut);
-	
-
-	if (camdev->is_ispif) {
 		pm_qos_update_request(&p_mctl->pm_qos_req_list,
-				PM_QOS_DEFAULT_VALUE);
+					PM_QOS_DEFAULT_VALUE);
 		pm_qos_remove_request(&p_mctl->pm_qos_req_list);
+
+		p_mctl->opencnt--;
+		wake_unlock(&p_mctl->wake_lock);
 	}
-
-	(void)msm_set_perf_lock(p_mctl, 0);
-
-	
-	
-	wake_unlock(&p_mctl->wake_lock_suspend);
-	return rc;
 }
 
 int msm_mctl_init_user_formats(struct msm_cam_v4l2_device *pcam)
