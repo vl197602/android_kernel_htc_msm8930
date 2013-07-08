@@ -113,7 +113,7 @@ struct mmc_async_req;
 
 extern int mmc_interrupt_bkops(struct mmc_card *);
 extern int mmc_read_bkops_status(struct mmc_card *);
-extern int mmc_is_exception_event(struct mmc_card *, unsigned int);
+extern bool mmc_card_is_prog_state(struct mmc_card *);
 extern struct mmc_async_req *mmc_start_req(struct mmc_host *,
 					   struct mmc_async_req *, int *);
 extern int mmc_interrupt_hpi(struct mmc_card *);
