@@ -136,6 +136,9 @@
 
 #define VFE_RELOAD_ALL_WRITE_MASTERS 0x00003FFF
 
+#define VFE_IOMMU_FAULT_HANDLER 1
+#define BUS_OVERFLOW_THRESHOLD  5
+
 enum VFE32_DMI_RAM_SEL {
 	NO_MEM_SELECTED          = 0,
 	BLACK_LUT_RAM_BANK0      = 0x1,
@@ -878,6 +881,66 @@ struct vfe_stats_control {
 	uint32_t droppedStatsFrameCount;
 	uint32_t bufToRender;
 };
+struct axi_ctrl_t;
+struct vfe32_ctrl_type;
+
+struct vfe_share_ctrl_t {
+	void __iomem *vfebase;
+	uint32_t register_total;
+
+	atomic_t vstate;
+	atomic_t handle_common_irq;
+	uint32_t vfeFrameId;
+	uint32_t rdi0FrameId;
+	uint32_t rdi1FrameId;
+	uint32_t rdi2FrameId;
+	uint32_t stats_comp;
+	spinlock_t  sd_notify_lock;
+	spinlock_t  stop_flag_lock;
+	int8_t stop_ack_pending;
+	enum vfe_output_state liveshot_state;
+	uint32_t vfe_capture_count;
+	int32_t rdi0_capture_count;
+	int32_t rdi1_capture_count;
+	int32_t rdi2_capture_count;
+	uint8_t update_counter;
+
+	uint32_t operation_mode;     /* streaming or snapshot */
+	uint32_t current_mode;
+	struct vfe32_output_path outpath;
+
+	uint16_t port_info;
+	uint8_t stop_immediately;
+	uint8_t sync_abort;
+	uint16_t cmd_type;
+	uint8_t vfe_reset_flag;
+	uint8_t dual_enabled;
+	uint8_t lp_mode;
+
+	uint8_t axi_ref_cnt;
+	uint16_t comp_output_mode;
+
+	struct completion reset_complete;
+
+	spinlock_t  update_ack_lock;
+	spinlock_t  start_ack_lock;
+
+	struct axi_ctrl_t *axi_ctrl;
+	struct vfe32_ctrl_type *vfe32_ctrl;
+	int8_t start_ack_pending;
+	int8_t update_ack_pending;
+	enum vfe_output_state recording_state;
+
+	atomic_t pix0_update_ack_pending;
+	atomic_t rdi0_update_ack_pending;
+	atomic_t rdi1_update_ack_pending;
+	atomic_t rdi2_update_ack_pending;
+
+	uint8_t stream_error;
+	uint32_t rdi_comp;
+	uint32_t overflow_count;
+};
+
 struct axi_ctrl_t {
 	struct v4l2_subdev subdev;
 	struct platform_device *pdev;
