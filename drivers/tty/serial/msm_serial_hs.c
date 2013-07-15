@@ -173,6 +173,7 @@ struct msm_hs_port {
 	enum uart_func_mode func_mode;
 	bool is_shutdown;
 	bool termios_in_progress;
+	int rx_buf_size;
 };
 
 #define MSM_UARTDM_BURST_SIZE 16   
@@ -1214,9 +1215,9 @@ static void msm_hs_start_rx_locked(struct uart_port *uport)
 	 * Zeroed out UART RX software buffer which would help to
 	 * check how much data is copied if there is any RX stall.
 	 */
-	memset(msm_uport->rx.buffer, 0x00, UARTDM_RX_BUF_SIZE);
+	memset(msm_uport->rx.buffer, 0x00, msm_uport->rx_buf_size);
 	msm_hs_write(uport, UARTDM_CR_ADDR, RESET_STALE_INT);
-	msm_hs_write(uport, UARTDM_DMRX_ADDR, UARTDM_RX_BUF_SIZE);
+	msm_hs_write(uport, UARTDM_DMRX_ADDR, msm_uport->rx_buf_size);
 	msm_hs_write(uport, UARTDM_CR_ADDR, STALE_EVENT_ENABLE);
 	msm_uport->imr_reg |= UARTDM_ISR_RXLEV_BMSK;
 
@@ -2183,7 +2184,7 @@ static int uartdm_init_port(struct uart_port *uport)
 			(unsigned long) &tx->tlet);
 
 	rx->pool = dma_pool_create("rx_buffer_pool", uport->dev,
-				   UARTDM_RX_BUF_SIZE, 16, 0);
+				   msm_uport->rx_buf_size, 16, 0);
 	if (!rx->pool) {
 		pr_err("%s(): cannot allocate rx_buffer_pool", __func__);
 		ret = -ENOMEM;
@@ -2212,8 +2213,8 @@ static int uartdm_init_port(struct uart_port *uport)
 		goto free_rx_command_ptr;
 	}
 
-	rx->command_ptr->num_rows = ((UARTDM_RX_BUF_SIZE >> 4) << 16) |
-					 (UARTDM_RX_BUF_SIZE >> 4);
+	rx->command_ptr->num_rows = ((msm_uport->rx_buf_size >> 4) << 16) |
+					 (msm_uport->rx_buf_size >> 4);
 
 	rx->command_ptr->dst_row_addr = rx->rbuffer;
 
@@ -2313,6 +2314,43 @@ static int __devinit msm_hs_probe(struct platform_device *pdev)
 			return -ENXIO;
 
 	}
+
+	/* Identify UART functional mode as 2-wire or 4-wire. */
+	if (pdata && pdata->config_gpio) {
+		switch (pdata->config_gpio) {
+		case 4:
+			if (gpio_is_valid(pdata->uart_tx_gpio)
+				&& gpio_is_valid(pdata->uart_rx_gpio)
+				&& gpio_is_valid(pdata->uart_cts_gpio)
+				&& gpio_is_valid(pdata->uart_rfr_gpio)) {
+					msm_uport->func_mode = UART_FOUR_WIRE;
+			} else {
+				pr_err("%s(): Wrong GPIO Number for 4-Wire.\n",
+								__func__);
+				return -EINVAL;
+			}
+			break;
+		case 2:
+			if (gpio_is_valid(pdata->uart_tx_gpio)
+				&& gpio_is_valid(pdata->uart_rx_gpio)) {
+					msm_uport->func_mode = UART_TWO_WIRE;
+			} else {
+				pr_err("%s(): Wrong GPIO Number for 2-Wire.\n",
+								__func__);
+				return -EINVAL;
+			}
+			break;
+		default:
+			pr_err("%s(): Invalid number of GPIOs.\n", __func__);
+			pdata->config_gpio = 0;
+			return -EINVAL;
+		}
+	}
+
+	if (pdata && pdata->uartdm_rx_buf_size)
+		msm_uport->rx_buf_size = pdata->uartdm_rx_buf_size;
+	else
+		msm_uport->rx_buf_size = UARTDM_RX_BUF_SIZE;
 
 	resource = platform_get_resource_byname(pdev, IORESOURCE_DMA,
 						"uartdm_channels");

@@ -22,11 +22,13 @@ struct msm_serial_hs_platform_data {
 	
 	unsigned char inject_rx_on_wakeup;
 	char rx_to_inject;
-	int (*gpio_config)(int);
-
-	
-	unsigned char bt_wakeup_pin;	
-	unsigned char host_wakeup_pin;	
+	unsigned config_gpio;
+	int uart_tx_gpio;
+	int uart_rx_gpio;
+	int uart_cts_gpio;
+	int uart_rfr_gpio;
+	int userid;
+	int uartdm_rx_buf_size;
 };
 
 extern void imc_msm_hs_request_clock_on(struct uart_port *uport);
