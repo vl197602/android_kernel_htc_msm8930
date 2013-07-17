@@ -457,9 +457,15 @@ extern struct platform_device msm8x60_device_acpuclk;
 extern struct platform_device msm8960_device_acpuclk;
 extern struct platform_device msm8064_device_acpuclk;
 extern struct platform_device msm9615_device_acpuclk;
-#ifdef CONFIG_PERFLOCK
-extern struct platform_device msm8064_device_perf_lock;
-extern struct platform_device msm8960_device_perf_lock;
-extern struct platform_device msm8930_device_perf_lock;
-extern struct platform_device msm8930aa_device_perf_lock;
-#endif
+
+extern struct platform_device apq8064_msm_mpd_device;
+
+extern struct platform_device msm_gpio_device;
+
+extern struct platform_device amdm_8064_device;
+extern struct platform_device bmdm_8064_device;
+
+extern struct platform_device sglte_mdm_8064_device;
+extern struct platform_device sglte2_qsc_8064_device;
+
+extern struct dev_avtimer_data dev_avtimer_pdata;
