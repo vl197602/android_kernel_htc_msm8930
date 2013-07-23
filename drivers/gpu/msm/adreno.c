@@ -1859,14 +1859,10 @@ _adreno_ft_restart_device(struct kgsl_device *device,
 		return 1;
 	}
 
-	if (context) {
+	if ((context != NULL) && (context->devctxt != NULL)) {
 		adreno_context = context->devctxt;
 		kgsl_mmu_setstate(&device->mmu, adreno_context->pagetable,
 			KGSL_MEMSTORE_GLOBAL);
-	} else {
-		KGSL_FT_CRIT(device, "Last context unknown id:%d\n",
-			ft_data->context_id);
-		return 1;
 	}
 
 	if (KGSL_MMU_TYPE_IOMMU == kgsl_mmu_get_mmutype()) {
