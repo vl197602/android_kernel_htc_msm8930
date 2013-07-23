@@ -207,9 +207,21 @@ void __diag_smd_send_req(void)
 	int loop_count = 0, retry = 0;
 	struct diag_request *write_ptr_modem = NULL;
 
-#if DIAG_XPST && !defined(CONFIG_DIAGFWD_BRIDGE_CODE)
-	int type;
-#endif
+	if (write_ptr_modem) {
+		write_ptr_modem->length = total_recd;
+		*in_busy_ptr = 1;
+		diag_device_write(buf, smd_info->peripheral, write_ptr_modem);
+	}
+
+	return 0;
+}
+
+void diag_smd_send_req(struct diag_smd_info *smd_info)
+{
+	void *buf = NULL, *temp_buf = NULL;
+	int total_recd = 0, r = 0, pkt_len;
+	int loop_count = 0, total_recd_partial = 0;
+	int notify = 0;
 
 	if (!driver->in_busy_1) {
 		buf = driver->buf_in_1;
@@ -224,53 +236,63 @@ void __diag_smd_send_req(void)
 drop:
 	if (driver->ch && buf) {
 		temp_buf = buf;
-		pkt_len = smd_cur_packet_size(driver->ch);
 
-		while (pkt_len && (pkt_len != total_recd)) {
-			loop_count++;
-			r = smd_read_avail(driver->ch);
-			pr_debug("diag: In %s, received pkt %d %d\n",
-				__func__, r, total_recd);
-			if (!r) {
-				
-				wait_event(driver->smd_wait_q,
-					((driver->ch == 0) ||
-					smd_read_avail(driver->ch)));
-				
-				if (driver->ch) {
-					pr_debug("diag: In %s, return from wait_event\n",
-						__func__);
-					continue;
-				} else {
-					pr_debug("diag: In %s, return from wait_event ch closed\n",
-						__func__);
-					return;
+		while ((pkt_len = smd_cur_packet_size(smd_info->ch)) != 0) {
+			total_recd_partial = 0;
+			while (pkt_len && (pkt_len != total_recd_partial)) {
+				loop_count++;
+				r = smd_read_avail(smd_info->ch);
+				pr_debug("diag: In %s, received pkt %d %d\n",
+					__func__, r, total_recd);
+				if (!r) {
+					/* Nothing to read from SMD */
+					wait_event(driver->smd_wait_q,
+						((smd_info->ch == 0) ||
+						smd_read_avail(smd_info->ch)));
+					/* If the smd channel is open */
+					if (smd_info->ch) {
+						pr_debug("diag: In %s, return from wait_event\n",
+							__func__);
+						continue;
+					} else {
+						pr_debug("diag: In %s, return from wait_event ch closed\n",
+							__func__);
+						return;
+					}
 				}
-			}
-			total_recd += r;
-			if (total_recd > IN_BUF_SIZE) {
-				if (total_recd < MAX_IN_BUF_SIZE) {
-					pr_err("diag: In %s, SMD sending in packets up to %d bytes\n",
-						__func__, total_recd);
-					buf = krealloc(buf, total_recd,
+				total_recd += r;
+				total_recd_partial += r;
+				if (total_recd > IN_BUF_SIZE) {
+					if (total_recd < MAX_IN_BUF_SIZE) {
+						pr_err("diag: In %s, SMD sending in packets up to %d bytes\n",
+							__func__, total_recd);
+						buf = krealloc(buf, total_recd,
 							GFP_KERNEL);
-				} else {
-					pr_err("diag: In %s, SMD sending in packets more than %d bytes\n",
-						__func__, MAX_IN_BUF_SIZE);
+					} else {
+						pr_err("diag: In %s, SMD sending in packets more than %d bytes\n",
+							__func__,
+							MAX_IN_BUF_SIZE);
+						return;
+					}
+				}
+				if (pkt_len < r) {
+					pr_err("diag: In %s, SMD sending incorrect pkt\n",
+						__func__);
 					return;
 				}
-			}
-			if (pkt_len < r) {
-				pr_err("diag: In %s, SMD sending incorrect pkt\n",
-					__func__);
-				return;
-			}
-			if (pkt_len > r) {
-				pr_debug("diag: In %s, SMD sending partial pkt %d %d %d %d %d %d\n",
-				__func__, pkt_len, r, total_recd, loop_count,
-				smd_info->peripheral, smd_info->type);
-			}
+				if (pkt_len > r) {
+					pr_debug("diag: In %s, SMD sending partial pkt %d %d %d %d %d %d\n",
+					__func__, pkt_len, r, total_recd,
+					loop_count, smd_info->peripheral,
+					smd_info->type);
+				}
 
+				/* keep reading for complete packet */
+				smd_read(smd_info->ch, temp_buf, r);
+				temp_buf += r;
+			}
+			if (smd_info->type != SMD_CNTL_TYPE)
+				break;
 		}
 
 		if (total_recd > 0) {
