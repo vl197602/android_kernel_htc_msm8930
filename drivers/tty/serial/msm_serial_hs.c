@@ -1029,6 +1029,7 @@ static void msm_hs_set_termios(struct uart_port *uport,
 	 * On receiving this interrupt, send discard flush request
 	 * to ADM driver and ignore all received data.
 	 */
+	wake_lock(&msm_uport->rx.wake_lock);
 	msm_hs_write(uport, UARTDM_CR_ADDR, FORCE_STALE_EVENT);
 	mb();
 
@@ -1673,6 +1674,7 @@ static int msm_hs_check_clock_off(struct uart_port *uport)
 	switch (msm_uport->clk_req_off_state) {
 	case CLK_REQ_OFF_START:
 		msm_uport->clk_req_off_state = CLK_REQ_OFF_RXSTALE_ISSUED;
+		wake_lock(&msm_uport->rx.wake_lock);
 		msm_hs_write(uport, UARTDM_CR_ADDR, FORCE_STALE_EVENT);
 		mb();
 		spin_unlock_irqrestore(&uport->lock, flags);
@@ -1882,6 +1884,7 @@ void msm_hs_request_clock_on(struct uart_port *uport)
 		if (ret) {
 			dev_err(uport->dev, "Clock ON Failure"
 			"For UART CLK Stalling HSUART\n");
+			wake_unlock(&msm_uport->dma_wake_lock);
 			break;
 		}
 
@@ -1891,6 +1894,7 @@ void msm_hs_request_clock_on(struct uart_port *uport)
 				clk_disable_unprepare(msm_uport->clk);
 				dev_err(uport->dev, "Clock ON Failure"
 				"For UART Pclk Stalling HSUART\n");
+				wake_unlock(&msm_uport->dma_wake_lock);
 				break;
 			}
 		}
