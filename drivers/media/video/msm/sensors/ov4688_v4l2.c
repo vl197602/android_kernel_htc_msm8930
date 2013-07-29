@@ -402,7 +402,6 @@ static struct msm_camera_i2c_reg_conf ov4688_hdr_settings[] = {
 	
 	
 #if 1
->>>>>>> 07c91ff... misc: Update camera code from HTC One Google Edition
 
    {0x3632 , 0x00},
    {0x376b , 0x20},
