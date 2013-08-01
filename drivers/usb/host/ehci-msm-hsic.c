@@ -1558,8 +1558,8 @@ static int msm_hsic_resume_thread(void *data)
 	}
 
 	/* keep delay between bus states */
-	if (time_before(jiffies, ehci->next_statechange))
-		usleep_range(5000, 5000);
+	if (time_before_eq(jiffies, ehci->next_statechange))
+		usleep_range(10000, 10000);
 
 		
 		pr_info("%s[%d] usleep_range 5000 end", __func__, __LINE__);
