@@ -1024,6 +1024,8 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 
 	disable_irq(data->irq);
 
+	mutex_lock(&input_dev->mutex);
+
 	error = mxt_load_fw(dev, MXT_FW_NAME);
 	if (error) {
 		dev_err(dev, "The firmware update failed(%d)\n", error);
@@ -1060,7 +1062,19 @@ static ssize_t mxt_update_fw_store(struct device *dev,
 		}
 	}
 
-	return count;
+	mutex_unlock(&input_dev->mutex);
+
+	enable_irq(data->irq);
+
+	return 0;
+}
+
+#if defined(CONFIG_HAS_EARLYSUSPEND)
+static void mxt_early_suspend(struct early_suspend *h)
+{
+	struct mxt_data *data = container_of(h, struct mxt_data, early_suspend);
+
+	mxt_suspend(&data->client->dev);
 }
 
 static DEVICE_ATTR(object, 0444, mxt_object_show, NULL);
