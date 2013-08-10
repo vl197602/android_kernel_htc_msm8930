@@ -477,14 +477,9 @@ obj-$(CONFIG_MSM_HSIC_SYSMON_TEST) += hsic_sysmon_test.o
 
 obj-$(CONFIG_MSM_RPM_SMD) += rpm-smd.o
 
-obj-$(CONFIG_PERFLOCK) += perflock.o
-obj-y += htc_ramdump.o
+ifdef CONFIG_MSM_CPR
+obj-$(CONFIG_DEBUG_FS) += msm_cpr-debug.o
+endif
+obj-$(CONFIG_MSM_CPU_PWRCTL) +=  msm_cpu_pwrctl.o
 
-obj-$(CONFIG_HTC_MONITOR) += htc_monitor.o
-
-obj-y += display/
-
-obj-$(CONFIG_IO_FOOTPRINT) += io_footprint.o
-
-#PWR2_ADD, @CPU Sniffer: CPU usage statistics.
-obj-y += htc_cpu_usage_stats.o
+obj-$(CONFIG_ARCH_RANDOM) += early_random.o
