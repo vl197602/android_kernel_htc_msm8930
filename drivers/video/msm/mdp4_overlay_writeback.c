@@ -320,9 +320,27 @@ void mdp4_writeback_kickoff_video(struct msm_fb_data_type *mfd,
 {
 	struct msmfb_writeback_data_list *node = NULL;
 
-	if (!writeback_init_done) {
-		printk("[DISP] mdp4_writeback_kickoff_video: writeback_init_done is false!\n");
-		return;
+	mutex_lock(&vctrl->update_lock);
+	undx =  vctrl->update_ndx;
+	vp = &vctrl->vlist[undx];
+	pipe = vctrl->base_pipe;
+	mixer = pipe->mixer_num;
+
+	/*
+	 * allow stage_commit without pipes queued
+	 * (vp->update_cnt == 0) to unstage pipes after
+	 * overlay_unset
+	 */
+
+	vctrl->update_ndx++;
+	vctrl->update_ndx &= 0x01;
+	vp->update_cnt = 0;     /* reset */
+	mutex_unlock(&vctrl->update_lock);
+
+	rc = mdp4_wfd_dequeue_update(mfd, &node);
+	if (rc != 0) {
+		pr_err("%s: mdp4_wfd_dequeue_update failed !! mfd=%x\n",
+			__func__, (int)mfd);
 	}
 
 	mutex_lock(&mfd->unregister_mutex);
@@ -343,6 +361,10 @@ void mdp4_writeback_kickoff_video(struct msm_fb_data_type *mfd,
 	mdp4_mixer_stage_commit(mixer);
 
 	pipe = vctrl->base_pipe;
+	if (!pipe->ov_blt_addr) {
+		schedule_work(&vctrl->clk_work);
+		return cnt;
+	}
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
 	vctrl->ov_koff++;
 	INIT_COMPLETION(vctrl->ov_comp);
@@ -370,7 +392,6 @@ static void clk_ctrl_work(struct work_struct *work)
 		container_of(work, typeof(*vctrl), clk_work);
 	mdp_clk_ctrl(0);
 }
->>>>>>> 36eaa99... msm_fb: Remove the extra MDP clock enable in writeback_commit
 
 	
 	mdp4_overlay_iommu_unmap_freelist(writeback_pipe->mixer_num);
