@@ -40,19 +40,33 @@ module_param_named(simlock_code, simlock_code, charp, S_IRUGO | S_IWUSR | S_IWGR
 
 static DEFINE_MUTEX(scm_lock);
 
-#define TAG "[SEC] "
-#undef PDEBUG
-#define PDEBUG(fmt, args...) printk(KERN_INFO TAG "[K] %s(%i, %s): " fmt "\n", \
-		__func__, current->pid, current->comm, ##args)
-
-#undef PERR
-#define PERR(fmt, args...) printk(KERN_ERR TAG "[E] %s(%i, %s): " fmt "\n", \
-		__func__, current->pid, current->comm, ##args)
-
-#undef PINFO
-#define PINFO(fmt, ...) printk(KERN_INFO TAG "[I] %s(%i, %s): " fmt "\n", \
-		__func__, current->pid, current->comm, ##__VA_ARGS__)
-
+#define SCM_BUF_LEN(__cmd_size, __resp_size)	\
+	(sizeof(struct scm_command) + sizeof(struct scm_response) + \
+		__cmd_size + __resp_size)
+/**
+ * struct scm_command - one SCM command buffer
+ * @len: total available memory for command and response
+ * @buf_offset: start of command buffer
+ * @resp_hdr_offset: start of response buffer
+ * @id: command to be executed
+ * @buf: buffer returned from scm_get_command_buffer()
+ *
+ * An SCM command is laid out in memory as follows:
+ *
+ *	------------------- <--- struct scm_command
+ *	| command header  |
+ *	------------------- <--- scm_get_command_buffer()
+ *	| command buffer  |
+ *	------------------- <--- struct scm_response and
+ *	| response header |      scm_command_to_response()
+ *	------------------- <--- scm_get_response_buffer()
+ *	| response buffer |
+ *	-------------------
+ *
+ * There can be arbitrary padding between the headers and buffers so
+ * you should always use the appropriate scm_get_*_buffer() routines
+ * to access the buffers in a safe manner.
+ */
 struct scm_command {
 	u32	len;
 	u32	buf_offset;
@@ -67,52 +81,12 @@ struct scm_response {
 	u32	is_complete;
 };
 
-struct oem_simlock_unlock_req {
-	u32	unlock;
-	void *code;
-};
-
-struct oem_log_oper_req {
-	u32	address;
-	u32	size;
-	u32	buf_addr;
-	u32	buf_len;
-	int	revert;
-};
-
-struct oem_access_item_req {
-	u32	is_write;
-	u32	id;
-	u32	buf_len;
-	void *buf;
-};
-
-struct oem_3rd_party_syscall_req {
-	u32 id;
-	void *buf;
-	u32 len;
-};
-
-static struct scm_command *alloc_scm_command(size_t cmd_size, size_t resp_size)
-{
-	struct scm_command *cmd;
-	size_t len = sizeof(*cmd) + sizeof(struct scm_response) + cmd_size +
-		resp_size;
-
-	cmd = kzalloc(PAGE_ALIGN(len), GFP_KERNEL);
-	if (cmd) {
-		cmd->len = len;
-		cmd->buf_offset = offsetof(struct scm_command, buf);
-		cmd->resp_hdr_offset = cmd->buf_offset + cmd_size;
-	}
-	return cmd;
-}
-
-static inline void free_scm_command(struct scm_command *cmd)
-{
-	kfree(cmd);
-}
-
+/**
+ * scm_command_to_response() - Get a pointer to a scm_response
+ * @cmd: command
+ *
+ * Returns a pointer to a response for a command.
+ */
 static inline struct scm_response *scm_command_to_response(
 		const struct scm_command *cmd)
 {
@@ -198,29 +172,48 @@ void scm_inv_range(unsigned long start, unsigned long end)
 }
 EXPORT_SYMBOL(scm_inv_range);
 
-int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
-		void *resp_buf, size_t resp_len)
+/**
+ * scm_call_common() - Send an SCM command
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @cmd_buf: command buffer
+ * @cmd_len: length of the command buffer
+ * @resp_buf: response buffer
+ * @resp_len: length of the response buffer
+ * @scm_buf: internal scm structure used for passing data
+ * @scm_buf_len: length of the internal scm structure
+ *
+ * Core function to scm call. Initializes the given cmd structure with
+ * appropriate values and makes the actual scm call. Validation of cmd
+ * pointer and length must occur in the calling function.
+ *
+ * Returns the appropriate error code from the scm call
+ */
+
+static int scm_call_common(u32 svc_id, u32 cmd_id, const void *cmd_buf,
+				size_t cmd_len, void *resp_buf, size_t resp_len,
+				struct scm_command *scm_buf,
+				size_t scm_buf_length)
 {
 	int ret;
-	struct scm_command *cmd;
 	struct scm_response *rsp;
 	unsigned long start, end;
 
-	cmd = alloc_scm_command(cmd_len, resp_len);
-	if (!cmd)
-		return -ENOMEM;
+	scm_buf->len = scm_buf_length;
+	scm_buf->buf_offset = offsetof(struct scm_command, buf);
+	scm_buf->resp_hdr_offset = scm_buf->buf_offset + cmd_len;
+	scm_buf->id = (svc_id << 10) | cmd_id;
 
-	cmd->id = (svc_id << 10) | cmd_id;
 	if (cmd_buf)
-		memcpy(scm_get_command_buffer(cmd), cmd_buf, cmd_len);
+		memcpy(scm_get_command_buffer(scm_buf), cmd_buf, cmd_len);
 
 	mutex_lock(&scm_lock);
-	ret = __scm_call(cmd);
+	ret = __scm_call(scm_buf);
 	mutex_unlock(&scm_lock);
 	if (ret)
-		goto out;
+		return ret;
 
-	rsp = scm_command_to_response(cmd);
+	rsp = scm_command_to_response(scm_buf);
 	start = (unsigned long)rsp;
 
 	do {
@@ -232,8 +225,74 @@ int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
 
 	if (resp_buf)
 		memcpy(resp_buf, scm_get_response_buffer(rsp), resp_len);
-out:
-	free_scm_command(cmd);
+
+	return ret;
+}
+
+/**
+ * scm_call_noalloc - Send an SCM command
+ *
+ * Same as scm_call except clients pass in a buffer (@scm_buf) to be used for
+ * scm internal structures. The buffer should be allocated with
+ * DEFINE_SCM_BUFFER to account for the proper alignment and size.
+ */
+int scm_call_noalloc(u32 svc_id, u32 cmd_id, const void *cmd_buf,
+		size_t cmd_len, void *resp_buf, size_t resp_len,
+		void *scm_buf, size_t scm_buf_len)
+{
+	int ret;
+	size_t len = SCM_BUF_LEN(cmd_len, resp_len);
+
+	if (cmd_len > scm_buf_len || resp_len > scm_buf_len ||
+	    len > scm_buf_len)
+		return -EINVAL;
+
+	if (!IS_ALIGNED((unsigned long)scm_buf, PAGE_SIZE))
+		return -EINVAL;
+
+	memset(scm_buf, 0, scm_buf_len);
+
+	ret = scm_call_common(svc_id, cmd_id, cmd_buf, cmd_len, resp_buf,
+				resp_len, scm_buf, len);
+	return ret;
+
+}
+
+/**
+ * scm_call() - Send an SCM command
+ * @svc_id: service identifier
+ * @cmd_id: command identifier
+ * @cmd_buf: command buffer
+ * @cmd_len: length of the command buffer
+ * @resp_buf: response buffer
+ * @resp_len: length of the response buffer
+ *
+ * Sends a command to the SCM and waits for the command to finish processing.
+ *
+ * A note on cache maintenance:
+ * Note that any buffers that are expected to be accessed by the secure world
+ * must be flushed before invoking scm_call and invalidated in the cache
+ * immediately after scm_call returns. Cache maintenance on the command and
+ * response buffers is taken care of by scm_call; however, callers are
+ * responsible for any other cached buffers passed over to the secure world.
+ */
+int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
+		void *resp_buf, size_t resp_len)
+{
+	struct scm_command *cmd;
+	int ret;
+	size_t len = SCM_BUF_LEN(cmd_len, resp_len);
+
+	if (cmd_len > len || resp_len > len)
+		return -EINVAL;
+
+	cmd = kzalloc(PAGE_ALIGN(len), GFP_KERNEL);
+	if (!cmd)
+		return -ENOMEM;
+
+	ret = scm_call_common(svc_id, cmd_id, cmd_buf, cmd_len, resp_buf,
+				resp_len, cmd, len);
+	kfree(cmd);
 	return ret;
 }
 EXPORT_SYMBOL(scm_call);
