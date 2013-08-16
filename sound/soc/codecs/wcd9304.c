@@ -99,7 +99,16 @@ struct sitar_codec_dai_data {
 #define SITAR_HS_DETECT_PLUG_INERVAL_MS 100
 #define NUM_ATTEMPTS_TO_REPORT 5
 #define SITAR_MBHC_STATUS_REL_DETECTION 0x0C
-#define SITAR_MBHC_GPIO_REL_DEBOUNCE_TIME_MS 200
+#define SITAR_MBHC_GPIO_REL_DEBOUNCE_TIME_MS 50
+#define SITAR_MBHC_GND_MIC_SWAP_THRESHOLD 2
+#define SITAR_MIC_GND_SWAP_DELAY_US 5000
+#define SITAR_USLEEP_RANGE_TOLERANCE 100
+
+#define CUT_OF_FREQ_MASK 0x30
+#define CF_MIN_3DB_4HZ 0x0
+#define CF_MIN_3DB_75HZ 0x01
+#define CF_MIN_3DB_150HZ 0x02
+
 
 static const DECLARE_TLV_DB_SCALE(digital_gain, 0, 1, 0);
 static const DECLARE_TLV_DB_SCALE(line_gain, 0, 7, 1);
@@ -4052,8 +4061,8 @@ void sitar_mbhc_cal(struct snd_soc_codec *codec)
 	dce_wait = (1000 * 512 * 60 * (nmeas + 1)) / (mclk_rate / 1000);
 	sta_wait = (1000 * 128 * (navg + 1)) / (mclk_rate / 1000);
 
-	sitar->mbhc_data.t_dce = DEFAULT_DCE_WAIT;
-	sitar->mbhc_data.t_sta = DEFAULT_STA_WAIT;
+	sitar->mbhc_data.t_dce = dce_wait;
+	sitar->mbhc_data.t_sta = sta_wait;
 
 	cfilt_mode = snd_soc_read(codec, sitar->mbhc_bias_regs.cfilt_ctl);
 	snd_soc_update_bits(codec, sitar->mbhc_bias_regs.cfilt_ctl, 0x40, 0x00);
@@ -4990,10 +4999,11 @@ void sitar_get_z(struct snd_soc_codec *codec , s16 *dce_z, s16 *sta_z)
 	/* Connect micbias to ground and disconnect vddio switch */
 	reg0 = snd_soc_read(codec, SITAR_A_MBHC_SCALING_MUX_1);
 	snd_soc_write(codec, SITAR_A_MBHC_SCALING_MUX_1, 0x81);
-	msleep(SITAR_MUX_SWITCH_READY_WAIT_MS);
 	reg1 = snd_soc_read(codec, SITAR_A_MICB_2_MBHC);
 	snd_soc_update_bits(codec, SITAR_A_MICB_2_MBHC, 1 << 7, 0);
 
+	/* delay 1ms for discharge mic voltage */
+	usleep_range(1000, 1000 + 1000);
 	*sta_z = sitar_codec_sta_dce(codec, 0, false);
 	*dce_z = sitar_codec_sta_dce(codec, 1, false);
 
