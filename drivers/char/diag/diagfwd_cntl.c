@@ -241,8 +241,71 @@ void diag_read_smd_cntl_work_fn(struct work_struct *work)
 
 void diag_read_smd_lpass_cntl_work_fn(struct work_struct *work)
 {
-	diag_smd_cntl_send_req(LPASS_PROC);
-}
+	struct diag_ctrl_msg_diagmode diagmode;
+	char buf[sizeof(struct diag_ctrl_msg_diagmode)];
+	int msg_size = sizeof(struct diag_ctrl_msg_diagmode);
+	int wr_size = -ENOMEM, retry_count = 0, timer;
+	struct diag_smd_info *data = NULL;
+
+	/* For now only allow the modem to receive the message */
+	if (!smd_info || smd_info->type != SMD_CNTL_TYPE ||
+		(smd_info->peripheral != MODEM_DATA))
+		return;
+
+	data = &driver->smd_data[smd_info->peripheral];
+	if (!data)
+		return;
+
+	mutex_lock(&driver->diag_cntl_mutex);
+	diagmode.ctrl_pkt_id = DIAG_CTRL_MSG_DIAGMODE;
+	diagmode.ctrl_pkt_data_len = 36;
+	diagmode.version = 1;
+	diagmode.sleep_vote = real_time ? 1 : 0;
+	/*
+	 * 0 - Disables real-time logging (to prevent
+	 *     frequent APPS wake-ups, etc.).
+	 * 1 - Enable real-time logging
+	 */
+	diagmode.real_time = real_time;
+	diagmode.use_nrt_values = 0;
+	diagmode.commit_threshold = 0;
+	diagmode.sleep_threshold = 0;
+	diagmode.sleep_time = 0;
+	diagmode.drain_timer_val = 0;
+	diagmode.event_stale_timer_val = 0;
+
+	memcpy(buf, &diagmode, msg_size);
+
+	if (smd_info->ch) {
+		while (retry_count < 3) {
+			wr_size = smd_write(smd_info->ch, buf, msg_size);
+			if (wr_size == -ENOMEM) {
+				/*
+				 * The smd channel is full. Delay while
+				 * smd processes existing data and smd
+				 * has memory become available. The delay
+				 * of 2000 was determined empirically as
+				 * best value to use.
+				 */
+				retry_count++;
+				for (timer = 0; timer < 5; timer++)
+					udelay(2000);
+			} else {
+				data =
+				&driver->smd_data[smd_info->peripheral];
+				driver->real_time_mode = real_time;
+				break;
+			}
+		}
+		if (wr_size != msg_size)
+			pr_err("diag: proc %d fail feature update %d, tried %d",
+				smd_info->peripheral,
+				wr_size, msg_size);
+	} else {
+		pr_err("diag: ch invalid, feature update on proc %d\n",
+				smd_info->peripheral);
+	}
+	process_lock_enabling(&data->nrt_lock, real_time);
 
 void diag_read_smd_wcnss_cntl_work_fn(struct work_struct *work)
 {

@@ -208,7 +208,96 @@ void chk_logging_wakeup(void)
 	}
 }
 
-void __diag_smd_send_req(void)
+void process_lock_enabling(struct diag_nrt_wake_lock *lock, int real_time)
+{
+	unsigned long read_lock_flags;
+
+	spin_lock_irqsave(&lock->read_spinlock, read_lock_flags);
+	if (real_time)
+		lock->enabled = 0;
+	else
+		lock->enabled = 1;
+	lock->ref_count = 0;
+	lock->copy_count = 0;
+	wake_unlock(&lock->read_lock);
+	spin_unlock_irqrestore(&lock->read_spinlock, read_lock_flags);
+}
+
+void process_lock_on_notify(struct diag_nrt_wake_lock *lock)
+{
+	unsigned long read_lock_flags;
+
+	spin_lock_irqsave(&lock->read_spinlock, read_lock_flags);
+	/*
+	 * Do not work with ref_count here in case
+	 * of spurious interrupt
+	 */
+	if (lock->enabled && !wake_lock_active(&lock->read_lock))
+		wake_lock(&lock->read_lock);
+	spin_unlock_irqrestore(&lock->read_spinlock, read_lock_flags);
+}
+
+void process_lock_on_read(struct diag_nrt_wake_lock *lock, int pkt_len)
+{
+	unsigned long read_lock_flags;
+
+	spin_lock_irqsave(&lock->read_spinlock, read_lock_flags);
+	if (lock->enabled) {
+		if (pkt_len > 0) {
+			/*
+			 * We have an data that is read that
+			 * needs to be processed, make sure the
+			 * processor does not go to sleep
+			 */
+			lock->ref_count++;
+			if (!wake_lock_active(&lock->read_lock))
+				wake_lock(&lock->read_lock);
+		} else {
+			/*
+			 * There was no data associated with the
+			 * read from the smd, unlock the wake lock
+			 * if it is not needed.
+			 */
+			if (lock->ref_count < 1) {
+				if (wake_lock_active(&lock->read_lock))
+					wake_unlock(&lock->read_lock);
+				lock->ref_count = 0;
+				lock->copy_count = 0;
+			}
+		}
+	}
+	spin_unlock_irqrestore(&lock->read_spinlock, read_lock_flags);
+}
+
+void process_lock_on_copy(struct diag_nrt_wake_lock *lock)
+{
+	unsigned long read_lock_flags;
+
+	spin_lock_irqsave(&lock->read_spinlock, read_lock_flags);
+	if (lock->enabled)
+		lock->copy_count++;
+	spin_unlock_irqrestore(&lock->read_spinlock, read_lock_flags);
+}
+
+void process_lock_on_copy_complete(struct diag_nrt_wake_lock *lock)
+{
+	unsigned long read_lock_flags;
+
+	spin_lock_irqsave(&lock->read_spinlock, read_lock_flags);
+	if (lock->enabled) {
+		lock->ref_count -= lock->copy_count;
+		if (lock->ref_count < 1) {
+			wake_unlock(&lock->read_lock);
+			lock->ref_count = 0;
+		}
+		lock->copy_count = 0;
+	}
+	spin_unlock_irqrestore(&lock->read_spinlock, read_lock_flags);
+}
+
+/* Process the data read from the smd data channel */
+int diag_process_smd_read_data(struct diag_smd_info *smd_info, void *buf,
+								int total_recd)
 {
 	void *buf = NULL, *temp_buf = NULL;
 	int total_recd = 0, r = 0, pkt_len, *in_busy_ptr = NULL;
