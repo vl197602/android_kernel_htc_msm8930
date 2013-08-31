@@ -87,16 +87,16 @@ define_string_show(media_mode, media_mode_buf);
 define_string_store(media_mode, media_mode_buf, null_cb);
 power_attr(media_mode);
 
-static int thermal_c0_value;
+static int thermal_c0_value = 9999999;
 #if (CONFIG_NR_CPUS >= 2)
-static int thermal_c1_value;
+static int thermal_c1_value = 9999999;
 #if (CONFIG_NR_CPUS == 4)
-static int thermal_c2_value;
-static int thermal_c3_value;
+static int thermal_c2_value = 9999999;
+static int thermal_c3_value = 9999999;
 #endif
 #endif
-static int thermal_final_value;
-static int thermal_g0_value;
+static int thermal_final_value = 9999999;
+static int thermal_g0_value = 999999999;
 static int thermal_batt_value;
 static int data_throttling_value;
 

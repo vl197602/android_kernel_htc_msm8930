@@ -217,16 +217,20 @@ int32_t msm_sensor_write_res_settings(struct msm_sensor_ctrl_t *s_ctrl,
 	if (s_ctrl->func_tbl->sensor_adjust_frame_lines)
 		rc = s_ctrl->func_tbl->sensor_adjust_frame_lines(s_ctrl, res);
 
-	if (s_ctrl->prev_dig_gain > 0 && s_ctrl->prev_line > 0){
-		if (s_ctrl->func_tbl->
-			sensor_write_exp_gain_ex != NULL){
-		    s_ctrl->func_tbl->
-		        sensor_write_exp_gain_ex(
-		        s_ctrl,
-		        SENSOR_PREVIEW_MODE,
-		        s_ctrl->prev_gain,
-		        s_ctrl->prev_dig_gain,
-		        s_ctrl->prev_line);
+	if (s_ctrl->func_tbl->sensor_yushanII_set_default_ae) {
+		s_ctrl->func_tbl->sensor_yushanII_set_default_ae(s_ctrl, res);
+	} else {
+		if (s_ctrl->prev_dig_gain > 0 && s_ctrl->prev_line > 0){
+			if (s_ctrl->func_tbl->
+				sensor_write_exp_gain_ex != NULL){
+			    s_ctrl->func_tbl->
+			        sensor_write_exp_gain_ex(
+			        s_ctrl,
+			        SENSOR_PREVIEW_MODE,
+			        s_ctrl->prev_gain,
+			        s_ctrl->prev_dig_gain,
+			        s_ctrl->prev_line);
+			}
 		}
 	}
 
@@ -712,6 +716,13 @@ int32_t msm_sensor_setting_parallel(struct msm_sensor_ctrl_t *s_ctrl,
 
 		
 		mutex_lock(s_ctrl->sensor_first_mutex);
+
+#ifdef CONFIG_RAWCHIPII
+		if(YushanII_Get_reloadInfo() == 0){
+			pr_info("stop YushanII first");
+			Ilp0100_stop();
+		}
+#endif
 		v4l2_subdev_notify(&s_ctrl->sensor_v4l2_subdev,
 			NOTIFY_ISPIF_STREAM, (void *)ISPIF_STREAM(
 			PIX_0, ISPIF_OFF_IMMEDIATELY));
@@ -1317,11 +1328,14 @@ int32_t msm_sensor_get_output_info(struct msm_sensor_ctrl_t *s_ctrl,
 		s_ctrl->sensor_exp_gain_info->sensor_max_linecount = 0xFFFFFFFF;
 
 	sensor_output_info->sensor_max_linecount = s_ctrl->sensor_exp_gain_info->sensor_max_linecount;
-
-    for (i=0;i<s_ctrl->msm_sensor_reg->num_conf;++i)
+	
+    for (i=0;i<s_ctrl->msm_sensor_reg->num_conf;++i) {
         if (s_ctrl->adjust_y_output_size)
             s_ctrl->msm_sensor_reg->output_settings[i].y_output -= 1;
-
+        if (s_ctrl->adjust_frame_length_line)
+            s_ctrl->msm_sensor_reg->output_settings[i].line_length_pclk *= 2;
+    }
+	
 	
     for (i=0;i<s_ctrl->msm_sensor_reg->num_conf;++i) {
         if (s_ctrl->adjust_y_output_size)
@@ -1345,11 +1359,14 @@ int32_t msm_sensor_get_output_info(struct msm_sensor_ctrl_t *s_ctrl,
 			s_ctrl->msm_sensor_reg->num_conf))
 			rc = -EFAULT;
 	}
-
-    for (i=0;i<s_ctrl->msm_sensor_reg->num_conf;++i)
+	
+    for (i=0;i<s_ctrl->msm_sensor_reg->num_conf;++i) {
         if (s_ctrl->adjust_y_output_size)
             s_ctrl->msm_sensor_reg->output_settings[i].y_output += 1;
-
+        if (s_ctrl->adjust_frame_length_line)
+            s_ctrl->msm_sensor_reg->output_settings[i].line_length_pclk /= 2;
+    }
+    
 	
     for (i=0;i<s_ctrl->msm_sensor_reg->num_conf;++i) {
         if (s_ctrl->adjust_y_output_size)
@@ -1892,7 +1909,7 @@ int32_t msm_sensor_i2c_probe(struct i2c_client *client,
 #endif
 	}
 
-	
+	if (board_mfg_mode () || s_ctrl->sensordata->htc_image == HTC_CAMERA_IMAGE_YUSHANII_BOARD) {
 #ifdef CONFIG_RAWCHIPII
 		rc = YushanII_probe_init();
 		if (rc < 0) {
@@ -1910,7 +1927,7 @@ int32_t msm_sensor_i2c_probe(struct i2c_client *client,
 			}
 		}
 #endif
-	
+	}
 
 	if (s_ctrl->func_tbl && s_ctrl->func_tbl->sensor_power_up)
 		rc = s_ctrl->func_tbl->sensor_power_up(s_ctrl);
@@ -2168,4 +2185,28 @@ struct file* msm_fopen(const char* path, int flags, int rights) {
 
     return filp;
 }
+void msm_dump_otp_to_file(const char* sensor_name, const short* add, const uint8_t* data, size_t count)  
+{  
+    uint8_t *path= "/data/otp.txt";  
+    struct file* f = msm_fopen (path, O_CREAT|O_RDWR|O_TRUNC, 0666);  
+    char buf[512];  
+    int i=0;  
+    int len=0,offset=0;  
+    pr_info ("%s\n",__func__);  
+  
+    if (f) {  
+        len = sprintf (buf,"%s\n",sensor_name);  
+        msm_fwrite (f,offset,buf,len);  
+        offset += len;  
+  
+        for (i=0; i<count; ++i) {  
+            len = sprintf (buf,"0x%x 0x%x\n",add[i],data[i]);  
+            msm_fwrite (f,offset,buf,len);  
+            offset += len;  
+        }  
+        msm_fclose (f);  
+    } else {  
+        pr_err ("%s: fail to open file\n", __func__);  
+    }  
+}  
 

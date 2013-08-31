@@ -2394,6 +2394,13 @@ static int set_battery_data(struct pm8921_bms_chip *chip)
 				= bms_battery_data->default_rbatt_mohm;
 		chip->delta_rbatt_mohm
 				= bms_battery_data->delta_rbatt_mohm;
+		if (bms_battery_data->level_ocv_update_stop_begin
+			&& bms_battery_data->level_ocv_update_stop_end) {
+			chip->level_ocv_update_stop_begin = bms_battery_data->level_ocv_update_stop_begin;
+			chip->level_ocv_update_stop_end = bms_battery_data->level_ocv_update_stop_end;
+			ocv_update_stop_active_mask = ocv_update_stop_active_mask |
+											OCV_UPDATE_STOP_BIT_BATT_LEVEL;
+		}
 	} else {
 		pr_err("bms_battery_data doesn't exist (id=%d)\n",
 					batt_id);
@@ -3197,12 +3204,6 @@ static int __devinit pm8921_bms_probe(struct platform_device *pdev)
 	chip->cc_backup_uv = 0;
 	chip->ocv_reading_at_100 = 0;
 	chip->ocv_backup_uv = 0;
-	if (pdata->level_ocv_update_stop_begin && pdata->level_ocv_update_stop_end) {
-		chip->level_ocv_update_stop_begin = pdata->level_ocv_update_stop_begin;
-		chip->level_ocv_update_stop_end = pdata->level_ocv_update_stop_end;
-		ocv_update_stop_active_mask = ocv_update_stop_active_mask |
-										OCV_UPDATE_STOP_BIT_BATT_LEVEL;
-	}
 	chip->start_percent = -EINVAL;
 	chip->end_percent = -EINVAL;
 	chip->batt_temp_channel = pdata->bms_cdata.batt_temp_channel;

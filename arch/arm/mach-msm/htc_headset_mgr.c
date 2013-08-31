@@ -693,6 +693,7 @@ static void mic_detect_work_func(struct work_struct *work)
 	case HEADSET_NO_MIC:
 		new_state |= BIT_HEADSET_NO_MIC;
 		HS_LOG("HEADSET_NO_MIC");
+		set_35mm_hw_state(0);
 		break;
 	case HEADSET_MIC:
 		new_state |= BIT_HEADSET;
@@ -737,9 +738,11 @@ static void mic_detect_work_func(struct work_struct *work)
 	} else
 		HS_LOG("MIC status has not changed");
 
+if (mic != HEADSET_NO_MIC)
+	{
 	if (hs_mgr_notifier.key_int_enable)
 		hs_mgr_notifier.key_int_enable(1);
-
+	}
 	mutex_unlock(&hi->mutex_lock);
 }
 
@@ -969,6 +972,7 @@ static void insert_detect_work_func(struct work_struct *work)
 	case HEADSET_NO_MIC:
 		new_state |= BIT_HEADSET_NO_MIC;
 		HS_LOG_TIME("HEADSET_NO_MIC");
+		set_35mm_hw_state(0);
 		break;
 	case HEADSET_MIC:
 		new_state |= BIT_HEADSET;

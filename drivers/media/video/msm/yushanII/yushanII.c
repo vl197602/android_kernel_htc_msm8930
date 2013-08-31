@@ -491,6 +491,9 @@ void YushanII_init_backcam(struct msm_sensor_ctrl_t *sensor,int res){
 	pr_info("[CAM]%s,res=%d,is_hdr=%d",
 		__func__, res,sensor->msm_sensor_reg->output_settings[res].is_hdr);
 	YushanII_login_start();
+
+	g_sensor = sensor;	
+
 	
 	if(sensor->msm_sensor_reg->output_settings[res].is_hdr)
 		sensor->sensordata->hdr_mode = 1;
@@ -535,10 +538,7 @@ void YushanII_init_backcam(struct msm_sensor_ctrl_t *sensor,int res){
 		
 		Ilp0100_interruptEnable(ENABLE_HTC_INTR, INTR_PIN_0);
 		Ilp0100_interruptEnable(ENABLE_RECOMMENDED_DEBUG_INTR_PIN1, INTR_PIN_1);
-<<<<<<< HEAD
-=======
 		Ilp0100_stop();
->>>>>>> 07c91ff... misc: Update camera code from HTC One Google Edition
 		if (sensor->yushanII_switch_virtual_channel) {
 		    Ilp0100_setVirtualChannelShortOrNormal(1);
 		    Ilp0100_setVirtualChannelLong(0);
@@ -555,10 +555,7 @@ void YushanII_init_backcam(struct msm_sensor_ctrl_t *sensor,int res){
 		
 		Ilp0100_interruptEnable(ENABLE_NO_INTR, INTR_PIN_0);
 		Ilp0100_interruptEnable(ENABLE_RECOMMENDED_DEBUG_INTR_PIN1, INTR_PIN_1);
-<<<<<<< HEAD
-=======
 		Ilp0100_stop();
->>>>>>> 07c91ff... misc: Update camera code from HTC One Google Edition
 		if (sensor->yushanII_switch_virtual_channel) {
 	        Ilp0100_setVirtualChannelShortOrNormal(0);
 	        Ilp0100_setVirtualChannelLong(1);
