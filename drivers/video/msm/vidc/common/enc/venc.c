@@ -641,8 +641,9 @@ static int vid_enc_open(struct inode *inode, struct file *file)
 static int vid_enc_release(struct inode *inode, struct file *file)
 {
 	struct video_client_ctx *client_ctx = file->private_data;
-	INFO(" msm_vidc_enc: Inside %s()", __func__);
-	keep_dig_voltage_low_in_idle(false);
+	INFO("\n msm_vidc_enc: Inside %s()", __func__);
+	vidc_cleanup_addr_table(client_ctx, BUFFER_TYPE_OUTPUT);
+	vidc_cleanup_addr_table(client_ctx, BUFFER_TYPE_INPUT);
 	vid_enc_close_client(client_ctx);
 	vidc_release_firmware();
 #ifndef USE_RES_TRACKER
