@@ -1618,19 +1618,37 @@ static int msm_server_v4l2_subscribe_event(struct v4l2_fh *fh,
 			sub->type = V4L2_EVENT_ALL;
 			v4l2_event_unsubscribe(fh, sub);
 			return rc;
-			} else
-				D("%s: subscribed evtType = 0x%x, rc = %d\n",
-						__func__, sub->type, rc);
-			sub->type++;
-			D("sub->type while = 0x%x\n", sub->type);
-		} while (sub->type !=
-			V4L2_EVENT_PRIVATE_START + MSM_SVR_RESP_MAX);
-	} else {
-		D("sub->type not V4L2_EVENT_ALL = 0x%x\n", sub->type);
-		rc = v4l2_event_subscribe(fh, sub);
-		if (rc < 0)
-			D("%s: failed for evtType = 0x%x, rc = %d\n",
-						__func__, sub->type, rc);
+		}
+		payload = event_cmd->command;
+		if (event_cmd->trans_code != ioctl_ptr->trans_code) {
+			pr_err("%s: Events don't match\n", __func__);
+			kfree(payload);
+			kfree(event_cmd);
+			rc = -EINVAL;
+			mutex_unlock(&pcam->event_lock);
+			break;
+		}
+		if (ioctl_ptr->len > 0 && ioctl_ptr->len <= MAX_SERVER_PAYLOAD_LENGTH) {
+			if (copy_to_user(ioctl_ptr->ioctl_ptr, payload,
+				 ioctl_ptr->len)) {
+				pr_err("%s Copy to user failed for cmd %d",
+					__func__, cmd);
+				kfree(payload);
+				kfree(event_cmd);
+				rc = -EINVAL;
+				mutex_unlock(&pcam->event_lock);
+				break;
+			}
+		}
+		kfree(payload);
+		kfree(event_cmd);
+		mutex_unlock(&pcam->event_lock);
+		rc = 0;
+		break;
+	}
+	default:
+		pr_err("%s Unsupported ioctl cmd %d ", __func__, cmd);
+		break;
 	}
 
 	D("%s: rc = %d\n", __func__, rc);
