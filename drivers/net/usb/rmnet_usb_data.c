@@ -679,20 +679,28 @@ static void rmnet_usb_disconnect(struct usb_interface *intf)
 {
 	struct usbnet		*unet;
 	struct rmnet_ctrl_dev	*dev;
+	unsigned int		n, rdev_cnt, unet_id;
+	struct driver_info	*info = unet->driver_info;
+	bool			mux = unet->data[4];
 
-	unet = usb_get_intfdata(intf);
-	if (!unet) {
-		dev_err(&intf->dev, "%s:data device not found\n", __func__);
-		return;
-	}
+	rdev_cnt = mux ? no_rmnet_insts_per_dev : 1;
 
 	device_set_wakeup_enable(&unet->udev->dev, 0);
 	rmnet_usb_data_debugfs_cleanup(unet);
 
-	dev = (struct rmnet_ctrl_dev *)unet->data[1];
-	if (!dev) {
-		dev_err(&intf->dev, "%s:ctrl device not found\n", __func__);
-		return;
+	for (n = 0; n < rdev_cnt; n++) {
+		unet_id = n + info->data * no_rmnet_insts_per_dev;
+		unet = mux ? unet_list[unet_id] : usb_get_intfdata(intf);
+		device_remove_file(&unet->net->dev, &dev_attr_dbg_mask);
+
+		dev = (struct rmnet_ctrl_dev *)unet->data[1];
+		rmnet_usb_ctrl_disconnect(dev);
+		unet->data[0] = 0;
+		unet->data[1] = 0;
+		rmnet_usb_data_debugfs_cleanup(unet);
+		usb_set_intfdata(intf, unet);
+		usbnet_disconnect(intf);
+		unet_list[unet_id] = NULL;
 	}
 	unet->data[0] = 0;
 	unet->data[1] = 0;
