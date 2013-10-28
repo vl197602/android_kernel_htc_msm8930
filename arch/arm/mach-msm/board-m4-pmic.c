@@ -461,7 +461,7 @@ static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 static struct pm8xxx_vibrator_platform_data pm8xxx_vib_pdata = {
 	.initial_vibrate_ms = 0,
 	.max_timeout_ms = 15000,
-	.level_mV = 3000,
+	.level_mV = 2000, // 3000
 };
 
 static struct pm8038_platform_data pm8038_platform_data __devinitdata = {
